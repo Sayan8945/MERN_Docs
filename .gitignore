@@ -12,3 +12,5 @@
 
 # Keep gitignore itself
 !.gitignore
+
+!README.md
