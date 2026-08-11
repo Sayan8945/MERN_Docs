@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1786423400.11998 "c:/Users/sayan/OneDrive/Desktop/MERN note/mern-handbook/main.tex" "main.pdf" "main" 1786423400.66814 2
+["pdflatex"] 1786443193.96903 "c:/Users/sayan/OneDrive/Desktop/MERN note/mern-handbook-compact/main.tex" "main.pdf" "main" 1786443194.776 2
   "C:/Users/sayan/AppData/Local/MiKTeX/miktex/data/le/pdftex/pdflatex.fmt" 1781772575.26366 13367096 3241facd5e1f51a3fc9589c73f6b1775 ""
   "C:/Users/sayan/AppData/Local/Programs/MiKTeX/fonts/tfm/public/cm/cmr10.tfm" 1136765053 1296 45809c5a464d5f32c8f98ba97c1bb47f ""
   "C:/Users/sayan/AppData/Local/Programs/MiKTeX/tex/generic/bigintcalc/bigintcalc.sty" 1576433602 40635 c40361e206be584d448876bba8a64a3b ""
@@ -72,6 +72,7 @@
   "C:/Users/sayan/AppData/Local/Programs/MiKTeX/tex/latex/amsfonts/amssymb.sty" 1358197772 13829 94730e64147574077f8ecfea9bb69af4 ""
   "C:/Users/sayan/AppData/Local/Programs/MiKTeX/tex/latex/amsfonts/umsa.fd" 1358197772 961 6518c6525a34feb5e8250ffa91731cff ""
   "C:/Users/sayan/AppData/Local/Programs/MiKTeX/tex/latex/amsfonts/umsb.fd" 1358197772 961 d02606146ba5601b5645f987c92e6193 ""
+  "C:/Users/sayan/AppData/Local/Programs/MiKTeX/tex/latex/base/bk10.clo" 1780057299 8288 b7adf19d80d61b8c202f170ef5f3144a ""
   "C:/Users/sayan/AppData/Local/Programs/MiKTeX/tex/latex/base/bk11.clo" 1780057299 8303 204e51f9cb9cd755862c9d3ebc3daf0e ""
   "C:/Users/sayan/AppData/Local/Programs/MiKTeX/tex/latex/base/book.cls" 1780057299 23268 b78763a2dc05aad78e4ef76acf43c249 ""
   "C:/Users/sayan/AppData/Local/Programs/MiKTeX/tex/latex/base/fontenc.sty" 1780057299 5275 529cdf4584f147773f12d4c9bf2b6cc3 ""
@@ -141,11 +142,12 @@
   "C:/Users/sayan/AppData/Local/Programs/MiKTeX/tex/latex/trimspaces/trimspaces.sty" 1253169183 1380 971a51b00a14503ddf754cab24c3f209 ""
   "C:/Users/sayan/AppData/Local/Programs/MiKTeX/tex/latex/url/url.sty" 1388490452 12796 8edb7d69a20b857904dd0ea757c14ec9 ""
   "C:/Users/sayan/AppData/Local/Programs/MiKTeX/tex/latex/xcolor/xcolor.sty" 1729265222 55384 b454dec21c2d9f45ec0b793f0995b992 ""
-  "c:/Users/sayan/OneDrive/Desktop/MERN note/mern-handbook/main.tex" 1786423397.39521 8728 257f74674b01c0b262a3106541b47060 ""
-  "chapters/part01.tex" 1786419939.55541 5717 cf40e3dcc786a2bdd9308a53acd2c4e6 ""
-  "chapters/part02.tex" 1786419970.99489 3393 2bf8b32ff77a37c257e31575de521c66 ""
+  "c:/Users/sayan/OneDrive/Desktop/MERN note/mern-handbook-compact/main.tex" 1786443187.53124 9159 3f94b3a4bc19c1c0ef00a1cea26d80f1 ""
+  "c:/Users/sayan/OneDrive/Desktop/MERN note/mern-handbook/main.tex" 1786443187.62344 8728 257f74674b01c0b262a3106541b47060 ""
+  "chapters/part01.tex" 1786443187.46167 4310 2e14167a6cb2e4f3c79765145adcfba8 ""
+  "chapters/part02.tex" 1786443187.46282 2580 1356703ded80b9e3bfa28135d43869f8 ""
   "main.aux" 0 -1 0 "pdflatex"
-  "main.tex" 1786423397.39521 8728 257f74674b01c0b262a3106541b47060 ""
+  "main.tex" 1786443187.53124 9159 3f94b3a4bc19c1c0ef00a1cea26d80f1 ""
   "main.toc" 0 -1 0 ""
   (generated)
   "main.aux"
