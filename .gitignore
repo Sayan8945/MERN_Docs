@@ -1,0 +1,14 @@
+# Ignore everything
+*
+
+# Allow folders so Git can reach files inside them
+!*/
+
+# Allow LaTeX source
+!*.tex
+
+# Allow PDF
+!*.pdf
+
+# Keep gitignore itself
+!.gitignore
