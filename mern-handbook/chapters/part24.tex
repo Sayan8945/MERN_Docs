@@ -1,0 +1,183 @@
+\chapter{Global Error Handling}
+
+Scattered \texttt{try/catch} blocks that each format their own error
+response lead to inconsistent API output -- one endpoint returns
+\texttt{\{ error: "..." \}}, another returns \texttt{\{ message: "..." \}},
+and a third crashes the process entirely on an unhandled rejection. A single
+global error handling middleware fixes all three problems at once: every
+error, from anywhere in the app, funnels through one place that shapes the
+response consistently.
+
+\begin{diagrambox}[Error Handling Flow]
+\begin{verbatim}
+ Controller
+    |  something goes wrong
+    v
+ throw new AppError("Task not found", 404)
+    |
+    v
+ catch block -> next(error)
+    |
+    v
+ (skips all remaining normal middleware/routes)
+    |
+    v
+ Global Error Middleware  (app.use((err, req, res, next) => ...))
+    |
+    v
+ JSON Response  { success: false, message }
+\end{verbatim}
+\end{diagrambox}
+
+\section{A Custom AppError Class}
+
+Plain \texttt{Error} objects don't carry an HTTP status code. A small
+subclass fixes that, letting any part of the app throw an error that already
+knows how it should be reported to the client.
+
+\begin{lstlisting}[language=JavaScript]
+// utils/AppError.js
+class AppError extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.statusCode = statusCode;
+    this.isOperational = true; // distinguishes expected errors from bugs
+  }
+}
+
+export default AppError;
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/taskController.js
+import AppError from "../utils/AppError.js";
+
+export const getTaskById = async (req, res, next) => {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      throw new AppError("Task not found", 404);
+    }
+    res.status(200).json({ success: true, data: task });
+  } catch (err) {
+    next(err);
+  }
+};
+\end{lstlisting}
+
+\section{Avoiding Repetitive try/catch: asyncHandler}
+
+Writing \texttt{try \{ ... \} catch (err) \{ next(err) \}} in every single
+controller is repetitive and easy to forget. A small wrapper function
+eliminates it by catching any rejected promise automatically.
+
+\begin{lstlisting}[language=JavaScript]
+// utils/asyncHandler.js
+const asyncHandler = (fn) => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
+
+export default asyncHandler;
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/taskController.js
+import asyncHandler from "../utils/asyncHandler.js";
+import AppError from "../utils/AppError.js";
+
+export const getTaskById = asyncHandler(async (req, res) => {
+  const task = await Task.findById(req.params.id);
+  if (!task) {
+    throw new AppError("Task not found", 404);
+  }
+  res.status(200).json({ success: true, data: task });
+});
+\end{lstlisting}
+
+Any thrown error, or any rejected promise from an \texttt{await} call inside
+the wrapped function, is automatically passed to \texttt{next(err)} -- the
+controller body no longer needs its own \texttt{try/catch} at all.
+
+\section{The Global Error Middleware}
+
+Express recognizes a middleware with four parameters
+\texttt{(err, req, res, next)} as an error handler. It must be registered
+\emph{after} all routes, so anything that calls \texttt{next(err)} anywhere
+in the app eventually reaches it.
+
+\begin{lstlisting}[language=JavaScript]
+// middleware/errorHandler.js
+export const errorHandler = (err, req, res, next) => {
+  let statusCode = err.statusCode || 500;
+  let message = err.message || "Internal Server Error";
+
+  // Mongoose: invalid ObjectId format, e.g. Task.findById("not-an-id")
+  if (err.name === "CastError") {
+    statusCode = 400;
+    message = `Invalid ${err.path}: ${err.value}`;
+  }
+
+  // Mongoose: schema validation failed (required field, enum, etc.)
+  if (err.name === "ValidationError") {
+    statusCode = 400;
+    message = Object.values(err.errors).map((e) => e.message).join(", ");
+  }
+
+  // MongoDB: duplicate key on a unique field, e.g. email already exists
+  if (err.code === 11000) {
+    statusCode = 409;
+    const field = Object.keys(err.keyValue)[0];
+    message = `${field} already exists`;
+  }
+
+  res.status(statusCode).json({
+    success: false,
+    message,
+  });
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// app.js
+import { errorHandler } from "./middleware/errorHandler.js";
+
+app.use("/api/auth", authRoutes);
+app.use("/api/tasks", taskRoutes);
+
+// must be registered after all routes
+app.use(errorHandler);
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+Middleware order matters. If \texttt{errorHandler} is registered before the
+routes, Express never reaches it when a route calls \texttt{next(err)} --
+the request hangs or Express falls back to its own default (and much less
+helpful) error page.
+\end{warnbox}
+
+\section{Mapping Mongoose-Specific Errors}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lXl}
+\toprule
+\textbf{Error} & \textbf{Cause} & \textbf{Mapped status} \\
+\midrule
+\texttt{CastError} & Malformed value for a typed field, most often an invalid \texttt{ObjectId} in a URL param. & 400 \\
+\texttt{ValidationError} & A document failed schema rules (\texttt{required}, \texttt{enum}, \texttt{minlength}, etc.) on save/create. & 400 \\
+Code \texttt{11000} & Duplicate key write against a field with a \texttt{unique} index (e.g. registering an email that already exists). & 409 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{tipbox}[TIP]
+Because these checks live inside the single \texttt{errorHandler}, no
+individual controller needs to know about Mongoose error internals --
+\texttt{Task.findById(badId)} throwing a \texttt{CastError} is turned into a
+clean \texttt{400 \{ message: "Invalid \_id: ..." \}} response automatically,
+regardless of which controller triggered it.
+\end{tipbox}
+
+\whatwhyhow
+{A single error-handling middleware, registered last in app.js, that every thrown or forwarded error eventually reaches and formats into a consistent JSON response.}
+{Without it, error handling is duplicated and inconsistent across every controller, and raw Mongoose/MongoDB errors leak internal details or default to an unhelpful 500 instead of a meaningful status code.}
+{Throw an \texttt{AppError(message, statusCode)} (or let asyncHandler catch any rejected promise), forward it with \texttt{next(err)}, and let \texttt{app.use((err, req, res, next) => ...)} map it -- including special cases like \texttt{CastError}, \texttt{ValidationError}, and duplicate key code 11000 -- to the right status and message.}

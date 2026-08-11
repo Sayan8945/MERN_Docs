@@ -1,0 +1,86 @@
+\chapter{MongoDB Setup}
+
+\section{Core Concepts}
+
+\begin{itemize}
+  \item \textbf{MongoDB} --- a document-oriented NoSQL database; stores data as flexible, JSON-like documents instead of rows in tables.
+  \item \textbf{MongoDB Atlas} --- MongoDB's official managed cloud hosting service; provisions clusters without you managing servers.
+  \item \textbf{Database} --- a logical container for collections (e.g. \texttt{taskmanager}).
+  \item \textbf{Collection} --- a group of documents, analogous to a SQL table (e.g. \texttt{tasks}, \texttt{users}).
+  \item \textbf{Document} --- a single BSON record inside a collection, analogous to a row (e.g. one task).
+  \item \textbf{ObjectId} --- MongoDB's default 12-byte unique identifier, auto-assigned to a document's \texttt{\_id} field.
+  \item \textbf{BSON} --- Binary JSON; the binary-encoded format MongoDB actually stores documents in on disk (adds types like Date and ObjectId that plain JSON lacks).
+\end{itemize}
+
+\begin{diagrambox}[MongoDB Hierarchy]
+\begin{verbatim}
+MongoDB Server / Cluster
+        |
+        v
+    Database            (e.g. "taskmanager")
+        |
+        v
+    Collection           (e.g. "tasks", "users")
+        |
+        v
+    Document             ({ _id, title, status, ... })
+        |
+        v
+    Fields               (title: "Fix bug", status: "todo")
+\end{verbatim}
+\end{diagrambox}
+
+\section{Connecting with Mongoose}
+
+\whatwhyhow{
+Mongoose is an ODM (Object Data Modeling) library that sits between your Node.js code and MongoDB, giving you schemas, validation, and query helpers.
+}{
+Raw MongoDB driver calls are untyped and repetitive. Mongoose lets you define a schema once and get consistent validation and query building everywhere.
+}{
+Create a single connection module (\texttt{config/db.js}) that reads the connection string from environment variables and connects once at startup.
+}
+
+\subsection{config/db.js}
+
+\begin{lstlisting}[language=JavaScript]
+const mongoose = require("mongoose");
+
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGO_URI);
+    console.log(`MongoDB connected: ${conn.connection.host}`);
+  } catch (error) {
+    console.error(`MongoDB connection error: ${error.message}`);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
+\end{lstlisting}
+
+\subsection{server.js (excerpt)}
+
+\begin{lstlisting}[language=JavaScript]
+const connectDB = require("./config/db");
+
+connectDB().then(() => {
+  app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+});
+\end{lstlisting}
+
+\section{MongoDB Atlas Connection String}
+
+An Atlas connection string follows the \texttt{mongodb+srv://} format:
+
+\begin{lstlisting}[language=JavaScript]
+// .env
+MONGO_URI=mongodb+srv://<username>:<password>@cluster0.mongodb.net/taskmanager?retryWrites=true&w=majority
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+Atlas requires you to whitelist IP addresses under Network Access before any connection succeeds; for local development add your current IP (or \texttt{0.0.0.0/0} temporarily for testing only).
+\end{notebox}
+
+\begin{warnbox}[WARNING]
+Never commit \texttt{.env} or hardcode the connection string with real credentials into source control. Add \texttt{.env} to \texttt{.gitignore} and provide a \texttt{.env.example} with placeholder values instead.
+\end{warnbox}

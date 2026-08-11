@@ -1,0 +1,167 @@
+\chapter{MERN Security}
+
+A MERN stack has attack surface on both ends: the Express API accepts
+arbitrary input, and React runs in a browser you don't control. This
+chapter covers the threats that matter in practice and the specific
+mitigation for each --- most are a single middleware addition.
+
+\section{Cross-Site Scripting (XSS)}
+
+Rendering user-supplied content as raw HTML lets an attacker inject a
+\texttt{<script>} that runs in other users' browsers, stealing cookies or
+tokens. React escapes text by default, so \texttt{\{task.title\}} is safe;
+the risk appears only when you bypass that escaping.
+
+\begin{lstlisting}[language=JavaScript]
+// DANGEROUS -- only with fully trusted, sanitized content
+<div dangerouslySetInnerHTML={{ __html: task.description }} />
+// SAFE -- React escapes this automatically
+<div>{task.description}</div>
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+If you must render HTML, sanitize it with \texttt{DOMPurify} first. Never
+assume "it's our own users" makes stored content safe to render unescaped.
+\end{warnbox}
+
+\section{Cross-Site Request Forgery (CSRF)}
+
+CSRF tricks a logged-in user's browser into submitting a request from
+another site using auto-attached cookies --- relevant because JWTs in
+HttpOnly cookies (Chapter~19) are sent automatically on every request to
+your domain. Mitigate with \texttt{sameSite: "strict"/"lax"} cookies and a
+CORS whitelist instead of \texttt{*}.
+
+\begin{lstlisting}[language=JavaScript]
+// server.js
+import cors from "cors";
+app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+\end{lstlisting}
+
+\section{NoSQL Injection}
+
+Building a Mongo query straight from a request body allows operator
+injection: sending \texttt{\{"\$gt": ""\}} as \texttt{password} can make
+\texttt{User.findOne({email, password})} match any document, bypassing
+login.
+
+\begin{lstlisting}[language=JavaScript]
+// server.js
+import mongoSanitize from "express-mongo-sanitize";
+app.use(mongoSanitize()); // strips keys starting with "$" or containing "."
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+Mongoose schema types reject some bad shapes, but that alone is fragile ---
+explicit sanitization middleware closes the gap regardless.
+\end{notebox}
+
+\section{Brute Force Login Attempts}
+
+Without a limit, an attacker can script thousands of password guesses per
+minute against \texttt{/api/auth/login}. Rate limiting caps attempts per
+IP per window.
+
+\begin{lstlisting}[language=JavaScript]
+// middleware/rateLimiter.js
+import rateLimit from "express-rate-limit";
+export const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, max: 10,
+  message: { success: false, message: "Too many login attempts. Try again later." },
+});
+// router.post("/login", loginLimiter, loginUser);
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+Apply a strict limiter to \texttt{/login} and \texttt{/register}, and a
+looser general limiter elsewhere.
+\end{tipbox}
+
+\section{Credential Theft via XSS-Accessible Tokens}
+
+A JWT in \texttt{localStorage} is readable by any JS on the page, including
+an injected XSS payload. HttpOnly cookies (Chapter~19) are invisible to
+\texttt{document.cookie} and JS entirely, so XSS alone can't steal them.
+
+\section{Insecure Cookies}
+
+An auth cookie without \texttt{secure}/\texttt{httpOnly} can be read by
+scripts and intercepted over plain HTTP.
+
+\begin{lstlisting}[language=JavaScript]
+res.cookie("token", jwtToken, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "strict",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+});
+\end{lstlisting}
+
+\section{Common HTTP Header Hardening}
+
+\texttt{helmet} sets security headers (disabling MIME sniffing, a baseline
+CSP) that block several attack classes in one line.
+
+\begin{lstlisting}[language=JavaScript]
+import helmet from "helmet";
+app.use(helmet());
+\end{lstlisting}
+
+\section{Exposed Secrets}
+
+Committing \texttt{.env} (or hardcoding a secret) puts credentials in Git
+history forever, even after later deletion. See Chapter~38; the rule is
+\texttt{.env} in \texttt{.gitignore} and secrets read only via
+\texttt{process.env}.
+
+\section{Malicious File Uploads}
+
+An unrestricted upload endpoint lets an attacker upload disguised
+executables or oversized files. Restrict MIME type and size at the multer
+layer; never trust the extension alone.
+
+\begin{lstlisting}[language=JavaScript]
+// middleware/upload.js
+import multer from "multer";
+const upload = multer({
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(file.mimetype)) return cb(new Error("Only JPEG, PNG, or WEBP images are allowed"));
+    cb(null, true);
+  },
+});
+export default upload;
+\end{lstlisting}
+
+\section{Input Validation}
+
+Every mitigation above assumes untrusted input is validated at the edge.
+See Chapter~23 for the \texttt{express-validator} layer that rejects
+malformed requests before a controller or query ever runs.
+
+\section{Summary Table}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{p{2.6cm}Xp{2.6cm}}
+\toprule
+\textbf{Threat} & \textbf{Mitigation} & \textbf{Where} \\
+\midrule
+XSS & Rely on React's default escaping; sanitize any HTML before \texttt{dangerouslySetInnerHTML} & Ch.~36 (rendering) \\
+CSRF & \texttt{sameSite} cookie flag + CORS origin whitelist & Ch.~19, Ch.~37 \\
+NoSQL injection & \texttt{express-mongo-sanitize} to strip \texttt{\$}/\texttt{.} keys, plus schema validation & Ch.~23, Ch.~37 \\
+Brute force login & \texttt{express-rate-limit} on \texttt{/auth} routes & Ch.~37 \\
+Credential theft (XSS reading tokens) & HttpOnly cookies instead of \texttt{localStorage} & Ch.~19 \\
+Insecure cookies & \texttt{httpOnly}, \texttt{secure}, \texttt{sameSite} flags & Ch.~19 \\
+Header-based attacks & \texttt{helmet()} middleware & Ch.~37 \\
+Exposed secrets & \texttt{.env} + \texttt{.gitignore}, never hardcode & Ch.~38 \\
+Malicious uploads & MIME/type + size limits in multer \texttt{fileFilter} & Ch.~37 \\
+Malformed/invalid input & \texttt{express-validator} at the route layer & Ch.~23 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\whatwhyhow
+{A secure MERN API layers helmet headers, rate limiting, input sanitization/validation, HttpOnly+secure+sameSite cookies, CORS restriction, upload restrictions, and secret management, instead of one single defense.}
+{Each threat exploits a different gap, so a single fix like "just validate input" leaves the others open.}
+{Add \texttt{helmet()} and \texttt{mongoSanitize()} globally, rate-limit auth routes, set cookies with \texttt{httpOnly}/\texttt{secure}/\texttt{sameSite}, whitelist CORS origins, restrict upload MIME types/sizes, and keep secrets in an untracked \texttt{.env}.}

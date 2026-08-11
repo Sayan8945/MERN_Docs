@@ -1,0 +1,51 @@
+\chapter{Key Architecture Diagrams}
+
+\begin{notebox}[NOTE]
+Five diagrams that summarize the flows built throughout this book. Refer
+back here whenever you need the big picture without re-reading a full
+chapter.
+\end{notebox}
+
+\begin{diagrambox}[1. MERN Architecture]
+\begin{verbatim}
+React --Axios--> Express --> Controller --> Service --> Mongoose --> MongoDB
+\end{verbatim}
+\end{diagrambox}
+Every request flows through the same five layers, in the same order,
+regardless of which feature it belongs to.
+
+\begin{diagrambox}[2. Authentication Flow]
+\begin{verbatim}
+Login --> Verify Password --> Generate JWT --> Set Cookie --> Browser
+
+Browser --Protected Request--> Middleware --> JWT Verify --> Controller
+\end{verbatim}
+\end{diagrambox}
+Login issues the token once; every subsequent protected request re-proves
+identity by having the middleware verify that same token.
+
+\begin{diagrambox}[3. CRUD Flow]
+\begin{verbatim}
+React Form --POST--> Express --> Controller --> MongoDB
+                                                     |
+React State <-- UI Update <-- Response <-------------
+\end{verbatim}
+\end{diagrambox}
+The round trip always ends by updating local React state so the UI
+reflects the new database state without a full page reload.
+
+\begin{diagrambox}[4. File Upload Flow]
+\begin{verbatim}
+React --FormData--> Multer --> Cloudinary --> URL --> MongoDB (saved)
+\end{verbatim}
+\end{diagrambox}
+The file itself never touches MongoDB --- only the Cloudinary-hosted
+URL is persisted on the document.
+
+\begin{diagrambox}[5. Production Deployment Flow]
+\begin{verbatim}
+User --> Frontend Hosting --HTTPS--> Backend API --> MongoDB Atlas
+\end{verbatim}
+\end{diagrambox}
+Three independently deployed pieces, connected only by HTTPS URLs and
+environment variables --- never by shared filesystem or process.

@@ -1,0 +1,152 @@
+\chapter{Environment Variables}
+
+Configuration that differs between machines and deployments --- database
+URIs, API keys, secrets --- does not belong in source code. Environment
+variables keep that configuration out of Git and let the same codebase run
+against different databases, keys, and URLs in development versus
+production.
+
+\section{Why Secrets Live Outside Source Code}
+
+A hardcoded database connection string or JWT secret is visible to anyone
+with repository access, and it stays in Git history even if deleted later.
+Environment variables are injected at runtime instead, so the source code
+only ever references \texttt{process.env.SOMETHING}, never the actual value.
+
+\section{Backend: \texttt{.env}}
+
+\begin{lstlisting}
+# .env  (backend root -- NEVER commit this file)
+PORT=5000
+MONGO_URI=mongodb+srv://user:password@cluster.mongodb.net/taskmanager
+JWT_SECRET=a-long-random-string-used-to-sign-tokens
+GOOGLE_CLIENT_ID=your-google-oauth-client-id
+GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+\end{lstlisting}
+
+Load it with \texttt{dotenv} at the very top of the entry file, before
+anything that reads \texttt{process.env}.
+
+\begin{lstlisting}[language=JavaScript]
+// server.js
+import "dotenv/config"; // or: require("dotenv").config();
+import express from "express";
+import mongoose from "mongoose";
+
+mongoose.connect(process.env.MONGO_URI);
+
+const app = express();
+app.listen(process.env.PORT, () => {
+  console.log(`Server running on port ${process.env.PORT}`);
+});
+\end{lstlisting}
+
+\section{Frontend: \texttt{.env} with Vite}
+
+Vite only exposes variables to the client bundle if they are prefixed with
+\texttt{VITE\_}. Anything without that prefix is invisible to the frontend
+code by design.
+
+\begin{lstlisting}
+# .env  (frontend root)
+VITE_API_URL=http://localhost:5000/api
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// api/axios.js
+import axios from "axios";
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,
+  withCredentials: true,
+});
+
+export default api;
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+Frontend environment variables are \textbf{not secret}. Vite (and every
+other bundler) inlines their values directly into the built JavaScript
+files at build time. Anyone can open browser DevTools, view the bundled
+source, and read every \texttt{VITE\_*} value shipped to production. Never
+put an API secret, database credential, or private key behind a
+\texttt{VITE\_} variable --- only put values that are already meant to be
+public, like a base API URL or a public-facing OAuth client ID.
+\end{warnbox}
+
+\section{Backend vs. Frontend: Different Rules}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{} & \textbf{Backend (Node/Express)} & \textbf{Frontend (Vite/React)} \\
+\midrule
+Loaded via & \texttt{dotenv} package, \texttt{process.env.KEY} & Built into the bundle, \texttt{import.meta.env.KEY} \\
+Naming rule & Any name & Must start with \texttt{VITE\_} to be exposed \\
+Visibility & Never sent to the browser & Compiled directly into public JS files \\
+Safe to store secrets? & Yes & No -- treat as public \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Development vs. Production Configuration}
+
+Two common approaches, both valid:
+
+\begin{itemize}
+\item \textbf{File-based:} keep \texttt{.env.development} and
+\texttt{.env.production} side by side; the tool (Vite, or a script) picks
+the right one based on the run mode.
+\item \textbf{Platform-provided:} in hosting platforms (Render, Railway,
+Vercel, Heroku), set environment variables through the platform's
+dashboard/CLI instead of shipping any \texttt{.env} file at all --- the
+platform injects them into the running process.
+\end{itemize}
+
+\begin{lstlisting}
+# .env.development
+VITE_API_URL=http://localhost:5000/api
+
+# .env.production
+VITE_API_URL=https://api.taskmanager.app/api
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+In production hosting, the platform-provided environment variable approach
+is generally preferred over committing an \texttt{.env.production} file --
+it keeps production secrets (backend side) out of the repository entirely,
+even in a private one.
+\end{notebox}
+
+\section{Always Gitignore \texttt{.env}}
+
+\begin{lstlisting}
+# .gitignore
+.env
+.env.*
+!.env.example
+\end{lstlisting}
+
+Commit an \texttt{.env.example} with the same keys but placeholder values,
+so teammates know what variables the project needs without ever seeing
+real secrets.
+
+\begin{lstlisting}
+# .env.example
+PORT=5000
+MONGO_URI=
+JWT_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+\end{lstlisting}
+
+\whatwhyhow
+{Configuration and secrets are read from \texttt{process.env} (backend, via \texttt{dotenv}) or \texttt{import.meta.env} (frontend, via Vite's \texttt{VITE\_} prefix) instead of being hardcoded.}
+{Hardcoded secrets end up in Git history permanently, and frontend bundles are publicly readable, so backend and frontend variables need fundamentally different trust assumptions.}
+{Keep an untracked \texttt{.env} per environment (or use platform-provided variables in production), commit only an \texttt{.env.example}, and never place real secrets behind a \texttt{VITE\_} key.}

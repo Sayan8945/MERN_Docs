@@ -1,0 +1,166 @@
+\chapter{Forms}
+
+Forms drive most frontend/backend interaction: login, registration, and
+every create/edit screen for tasks. This chapter covers the shared
+pattern --- controlled inputs backed by one state object, validated
+before submit, wired to the API with loading/error handling.
+
+\section{Controlled Inputs and a Single Form State Object}
+
+A controlled input's value is driven by React state, updated on every
+keystroke via \texttt{onChange}. Keep the whole form as one object and use
+a single generic handler keyed by each input's \texttt{name}.
+
+\begin{lstlisting}[language=JavaScript]
+const [form, setForm] = useState({ email: "", password: "" });
+
+const handleChange = (e) => {
+  setForm({ ...form, [e.target.name]: e.target.value });
+};
+// <input name="email" value={form.email} onChange={handleChange} />
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+This one handler works for any number of fields as long as each
+\texttt{name} matches a key in the form object --- add a field by adding a
+key and an input, no new handler needed.
+\end{notebox}
+
+\section{Example 1: LoginForm}
+
+\begin{lstlisting}[language=JavaScript]
+// components/LoginForm.jsx
+import { useState } from "react";
+import api from "../api/axios";
+
+function LoginForm({ onSuccess }) {
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const validate = () => {
+    const errs = {};
+    if (!form.email) errs.email = "Email is required";
+    if (!form.password) errs.password = "Password is required";
+    return errs;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const errs = validate();
+    setErrors(errs);
+    if (Object.keys(errs).length) return;
+    setLoading(true);
+    try {
+      const res = await api.post("/auth/login", form);
+      onSuccess(res.data.data);
+    } catch (err) {
+      setErrors({ form: err.response?.data?.message || "Login failed" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <input name="email" value={form.email} onChange={handleChange} placeholder="Email" />
+      {errors.email && <p className="text-red-600 text-sm">{errors.email}</p>}
+      <input name="password" type="password" value={form.password} onChange={handleChange} placeholder="Password" />
+      {errors.password && <p className="text-red-600 text-sm">{errors.password}</p>}
+      {errors.form && <p className="text-red-600 text-sm">{errors.form}</p>}
+      <button type="submit" disabled={loading}>{loading ? "Logging in..." : "Log In"}</button>
+    </form>
+  );
+}
+
+export default LoginForm;
+\end{lstlisting}
+
+\section{Example 2: RegisterForm with Confirm Password}
+
+Adds a \texttt{confirmPassword} field that's stripped before the request
+is sent --- it exists only for client-side validation.
+
+\begin{lstlisting}[language=JavaScript]
+// components/RegisterForm.jsx (key differences from LoginForm)
+const [form, setForm] = useState({ name: "", email: "", password: "", confirmPassword: "" });
+
+const validate = () => {
+  const errs = {};
+  if (!form.name) errs.name = "Name is required";
+  if (!/^\S+@\S+\.\S+$/.test(form.email)) errs.email = "Enter a valid email";
+  if (form.password.length < 6) errs.password = "Password must be at least 6 characters";
+  if (form.confirmPassword !== form.password) errs.confirmPassword = "Passwords do not match";
+  return errs;
+};
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  const errs = validate();
+  setErrors(errs);
+  if (Object.keys(errs).length) return;
+  setLoading(true);
+  try {
+    const { confirmPassword, ...payload } = form; // never send this to the backend
+    await api.post("/auth/register", payload);
+  } catch (err) {
+    setErrors({ form: err.response?.data?.message || "Registration failed" });
+  } finally {
+    setLoading(false);
+  }
+};
+// Renders one input per key in `form` plus a matching error line, same shape as LoginForm.
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+Never send \texttt{confirmPassword} to the backend --- strip it via
+destructuring before the API call, as shown above.
+\end{warnbox}
+
+\section{Example 3: TaskForm --- Create/Edit Dual Mode}
+
+One form component handles both create and edit. An \texttt{id} prop picks
+the mode: present means load-then-\texttt{PUT}, absent means blank-then-\texttt{POST}.
+
+\begin{lstlisting}[language=JavaScript]
+// components/TaskForm.jsx (delta from the pattern above)
+function TaskForm({ id, onSaved }) {
+  const isEditMode = Boolean(id);
+  const [form, setForm] = useState({ title: "", description: "", status: "pending" });
+
+  useEffect(() => {
+    if (!isEditMode) return;
+    api.get(`/tasks/${id}`).then((res) => {
+      const { title, description, status } = res.data.data;
+      setForm({ title, description, status });
+    });
+  }, [id, isEditMode]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.title.trim()) return setErrors({ title: "Title is required" });
+    if (isEditMode) await api.put(`/tasks/${id}`, form);
+    else await api.post("/tasks", form);
+    onSaved();
+  };
+  // Inputs: title, description (textarea), status (select: pending/in-progress/done)
+  // Submit label: isEditMode ? "Update Task" : "Create Task"
+}
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+This create/edit-by-prop pattern avoids two near-identical form
+components: render \texttt{<TaskForm />} to create, \texttt{<TaskForm id={task.\_id} />} to edit.
+\end{tipbox}
+
+\section{Resetting Forms After Success}
+
+Reset a create form to its initial values after success (see the create
+branch above). Edit forms typically don't need a reset.
+
+\whatwhyhow
+{Forms use controlled inputs backed by a single state object, a generic \texttt{handleChange}, client-side validation before submit, and loading/error state around the API call.}
+{Scattered per-field state makes validation and reset inconsistent; skipping client-side validation wastes a round trip.}
+{Validate in a \texttt{validate()} call before the API request, set field errors from its return value, and reset on success.}

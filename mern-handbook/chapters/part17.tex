@@ -1,0 +1,204 @@
+\chapter{Password Hashing with bcrypt}
+
+A database full of user records is one breach away from being public. If
+passwords are stored as plain text, that breach instantly compromises every
+account -- and because people reuse passwords, it compromises their accounts
+on other sites too. This chapter covers the one non-negotiable rule of
+authentication: passwords are never stored as-is.
+
+\begin{warnbox}[WARNING]
+Never store passwords in plain text, and never store them encrypted with a
+reversible cipher either. Encryption implies a key that can decrypt the
+value back to the original password -- if that key leaks, every password
+leaks with it. Hashing is one-way: there is no key that turns a hash back
+into the original password. This is why bcrypt, not AES or a custom cipher,
+is the right tool for passwords.
+\end{warnbox}
+
+\section{Hashing and Salt}
+
+A hash function takes an input of any length and produces a fixed-length
+output. The same input always produces the same output, but there is no
+practical way to reverse it. If two users pick the password
+\texttt{password123}, a plain hash function (like SHA-256) would produce the
+\emph{same} hash for both -- which lets an attacker use precomputed lookup
+tables (``rainbow tables'') to crack thousands of hashes at once.
+
+A \textbf{salt} fixes this. It is random data mixed into the password before
+hashing, so the same password produces a different hash every time. bcrypt
+generates and stores this salt automatically as part of the hash string
+itself, so you never manage salts manually.
+
+\begin{diagrambox}[bcrypt Hashing Flow]
+\begin{verbatim}
+ Plain password: "MySecret123"
+        |
+        v
+ bcrypt generates a random salt
+        |
+        v
+ Salt + password run through the bcrypt algorithm
+ (repeated for 2^rounds iterations)
+        |
+        v
+ Resulting hash stored in DB:
+ $2b$10$N9qo8uLOickgx2ZMRZoMy...
+ (algorithm + rounds + salt + hash, all in one string)
+\end{verbatim}
+\end{diagrambox}
+
+\section{Hashing on Registration}
+
+Install bcrypt and hash the password before saving the user document.
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/authController.js
+import bcrypt from "bcrypt";
+import User from "../models/User.js";
+
+export const registerUser = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+
+    const existing = await User.findOne({ email });
+    if (existing) {
+      return res.status(409).json({ success: false, message: "Email already in use" });
+    }
+
+    const salt = 10; // salt rounds
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const user = await User.create({
+      name,
+      email,
+      password: hashedPassword,
+      role: "user",
+    });
+
+    res.status(201).json({
+      success: true,
+      data: { id: user._id, name: user.name, email: user.email, role: user.role },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+\end{lstlisting}
+
+\subsection{The Salt Rounds Tradeoff}
+
+The second argument to \texttt{bcrypt.hash} is the \textbf{cost factor}
+(commonly called salt rounds). It controls how many times the hashing
+algorithm loops internally -- work scales as $2^{\text{rounds}}$.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{Rounds} & \textbf{Effect} & \textbf{Tradeoff} \\
+\midrule
+8--10 & Fast (a few ms to ~100ms per hash) & Weaker against brute force, fine for most apps \\
+12 & Slower (~250ms per hash) & Better resistance, noticeable login latency \\
+14+ & Very slow (seconds) & Strong resistance, but hurts login UX and server throughput \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{notebox}[NOTE]
+10 is the widely used default and a reasonable choice for a typical Node.js
+API -- it costs bcrypt roughly 50--100ms per hash on modern hardware, which
+is imperceptible to a user logging in but expensive enough to make brute
+forcing millions of guesses impractical.
+\end{notebox}
+
+\section{Verifying on Login}
+
+You never ``unhash'' a password to compare it. Instead, bcrypt re-hashes the
+submitted password using the salt embedded in the stored hash, and compares
+the results.
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/authController.js
+export const loginUser = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+
+    // generateToken + res.cookie happen here (see Chapters 18-19)
+    res.status(200).json({ success: true, data: { id: user._id, email: user.email } });
+  } catch (err) {
+    next(err);
+  }
+};
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+Return the same generic ``Invalid credentials'' message whether the email
+does not exist or the password is wrong. Distinguishing the two tells an
+attacker which emails are registered in your system.
+\end{warnbox}
+
+\section{Alternative: Hashing in a Mongoose Pre-Save Hook}
+
+Instead of hashing manually in every controller that creates or updates a
+user, you can centralize it in the User schema using a \texttt{pre("save")}
+hook. This guarantees hashing happens no matter where a user document is
+saved from.
+
+\begin{lstlisting}[language=JavaScript]
+// models/User.js
+import mongoose from "mongoose";
+import bcrypt from "bcrypt";
+
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  avatar: { type: String, default: "" },
+  role: { type: String, enum: ["user", "manager", "admin"], default: "user" },
+});
+
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next(); // skip if unchanged
+
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
+userSchema.methods.comparePassword = function (candidate) {
+  return bcrypt.compare(candidate, this.password);
+};
+
+export default mongoose.model("User", userSchema);
+\end{lstlisting}
+
+\subsection{Why \texttt{isModified("password")} Matters}
+
+Without this check, every time a user document is saved -- even to update an
+unrelated field like \texttt{avatar} -- the hook would re-hash the
+\emph{already-hashed} password. That produces a hash-of-a-hash, permanently
+locking the user out because future logins compare against the wrong value.
+\texttt{isModified("password")} ensures the hook only re-hashes when the raw
+password field was actually changed on this save.
+
+\begin{tipbox}[TIP]
+With the pre-save hook approach, the controller simplifies to
+\texttt{User.create(\{ name, email, password, role \})} -- no manual
+\texttt{bcrypt.hash} call needed. Login still uses
+\texttt{user.comparePassword(password)} (or \texttt{bcrypt.compare}
+directly) exactly as shown above.
+\end{tipbox}
+
+\whatwhyhow
+{bcrypt hashes passwords with a per-password random salt before storage, and compares candidate passwords against the stored hash on login.}
+{Plain-text or reversibly-encrypted passwords turn any database leak into a full account compromise; one-way hashing with salt makes stored values useless to an attacker even if stolen.}
+{Hash with \texttt{bcrypt.hash(password, 10)} on registration (or via a \texttt{pre("save")} hook guarded by \texttt{isModified("password")}), and verify with \texttt{bcrypt.compare(password, user.password)} on login.}

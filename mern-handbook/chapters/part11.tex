@@ -1,0 +1,183 @@
+\chapter{MVC + Service Layer Architecture}
+
+\section{Professional Backend Folder Structure}
+
+\begin{diagrambox}[backend/src Folder Tree]
+\begin{verbatim}
+backend/src/
+|-- config/
+|   `-- db.js               MongoDB connection setup
+|-- controllers/
+|   |-- auth.controller.js   HTTP layer: parses req, calls service, sends res
+|   `-- task.controller.js
+|-- middleware/
+|   |-- auth.middleware.js   protect(), role checks
+|   `-- error.middleware.js  centralized error handler
+|-- models/
+|   |-- User.js              Mongoose schema/model
+|   `-- Task.js
+|-- routes/
+|   |-- auth.routes.js       path -> controller wiring
+|   `-- task.routes.js
+|-- services/
+|   |-- auth.service.js      business logic + Mongoose queries
+|   `-- task.service.js
+|-- validators/
+|   `-- task.validator.js    input validation schemas
+|-- utils/
+|   |-- generateToken.js
+|   `-- asyncHandler.js
+|-- app.js                   Express app + middleware + routes
+`-- server.js                HTTP listener + DB connection
+\end{verbatim}
+\end{diagrambox}
+
+\section{The Request Flow}
+
+\begin{diagrambox}[Layered Request Flow]
+\begin{verbatim}
+Client Request
+     |
+     v
+  Route          (path matching: POST /api/tasks)
+     |
+     v
+ Middleware       (auth check, validation)
+     |
+     v
+ Controller       (parse req, call service, shape res)
+     |
+     v
+  Service         (business rules, orchestrates model calls)
+     |
+     v
+   Model          (Mongoose schema methods: Task.create, Task.find)
+     |
+     v
+ MongoDB           (actual document storage)
+\end{verbatim}
+\end{diagrambox}
+
+\section{Anti-Pattern: Everything in the Route Handler}
+
+\begin{warnbox}[ANTI-PATTERN]
+The following is what an unstructured, "just make it work" route looks like. It mixes validation, auth, database access, and business logic in one function. This does not scale past a handful of endpoints.
+\end{warnbox}
+
+\begin{lstlisting}[language=JavaScript]
+// routes/task.routes.js  -- DO NOT DO THIS
+router.post("/", async (req, res) => {
+  // auth check inline
+  const token = req.cookies.token;
+  if (!token) return res.status(401).json({ message: "Not authenticated" });
+  let userId;
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    userId = decoded.id;
+  } catch (e) {
+    return res.status(401).json({ message: "Invalid token" });
+  }
+
+  // validation inline
+  const { title, description, status, priority, dueDate } = req.body;
+  if (!title || title.trim() === "") {
+    return res.status(400).json({ message: "Title is required" });
+  }
+  if (status && !["todo", "progress", "completed"].includes(status)) {
+    return res.status(400).json({ message: "Invalid status" });
+  }
+
+  // business logic + db access inline
+  try {
+    const existingCount = await Task.countDocuments({ user: userId });
+    if (existingCount >= 100) {
+      return res.status(400).json({ message: "Task limit reached" });
+    }
+    const task = new Task({ title, description, status, priority, dueDate, user: userId });
+    await task.save();
+    const populated = await Task.findById(task._id).populate("user", "name email");
+    return res.status(201).json(populated);
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+\end{lstlisting}
+
+\section{Refactored: Route -> Controller -> Service}
+
+\subsection{routes/task.routes.js}
+
+\begin{lstlisting}[language=JavaScript]
+const express = require("express");
+const { createTask } = require("../controllers/task.controller");
+const { protect } = require("../middleware/auth.middleware");
+const { validateTask } = require("../validators/task.validator");
+
+const router = express.Router();
+
+router.post("/", protect, validateTask, createTask);
+
+module.exports = router;
+\end{lstlisting}
+
+\subsection{controllers/task.controller.js}
+
+\begin{lstlisting}[language=JavaScript]
+const taskService = require("../services/task.service");
+
+// Controller: translates HTTP <-> service calls. No Mongoose here.
+const createTask = async (req, res, next) => {
+  try {
+    const task = await taskService.createTask(req.body, req.user.id);
+    res.status(201).json(task);
+  } catch (err) {
+    next(err); // delegate to centralized error middleware
+  }
+};
+
+module.exports = { createTask };
+\end{lstlisting}
+
+\subsection{services/task.service.js}
+
+\begin{lstlisting}[language=JavaScript]
+const Task = require("../models/Task");
+
+const MAX_TASKS_PER_USER = 100;
+
+// Service: owns business rules and all Mongoose interaction.
+const createTask = async (taskData, userId) => {
+  const existingCount = await Task.countDocuments({ user: userId });
+  if (existingCount >= MAX_TASKS_PER_USER) {
+    const err = new Error("Task limit reached");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const task = await Task.create({ ...taskData, user: userId });
+  return task.populate("user", "name email");
+};
+
+module.exports = { createTask };
+\end{lstlisting}
+
+\section{Layer Responsibilities}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l X X}
+\toprule
+\textbf{Layer} & \textbf{Responsibility} & \textbf{Should NOT contain} \\
+\midrule
+Route       & Map HTTP method+path to a controller; attach middleware & Business logic, database calls, validation logic \\
+Middleware  & Cross-cutting concerns: auth, validation, logging, error handling & Resource-specific business rules \\
+Controller  & Read \texttt{req}, call one service function, shape \texttt{res} & Direct Mongoose queries, complex business rules \\
+Service     & Business rules, orchestration, calls to one or more models & \texttt{req}/\texttt{res} objects, HTTP status codes \\
+Model       & Schema definition, field-level validation, Mongoose hooks & Business rules that span multiple resources \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{tipbox}[TIP]
+A good litmus test: if you could reuse the function from a CLI script or a cron job (no \texttt{req}/\texttt{res} in sight), it belongs in the service layer.
+\end{tipbox}

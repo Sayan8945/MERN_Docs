@@ -1,0 +1,150 @@
+\chapter{Google OAuth Login}
+
+Email/password login works, but many users expect a "Sign in with Google" button too -- one less password to remember. This chapter wires Google OAuth into the Task Management System so that, after Google verifies the user, your own backend still issues the same JWT cookie used everywhere else in the app. The \texttt{protect} middleware, \texttt{authorize}, and controllers never need to know whether a user logged in with a password or with Google.
+
+\section{The Big Picture}
+
+The key idea: your React app never handles the user's Google password, and your Express server never talks to Google's login page directly. Google's own SDK on the frontend handles the login UI and hands your backend a signed \textbf{ID token} proving the user's identity, which your backend verifies with Google before trusting it.
+
+\begin{diagrambox}[Google OAuth Flow]
+\begin{verbatim}
+ 1. React renders Google's "Sign in with Google" button
+        |  user clicks, Google popup/redirect handles login
+        v
+ 2. Google -> Authorization (user approves access)
+        |
+        v
+ 3. Callback -> React receives an ID token from Google
+        |
+        v
+ 4. React -> POST /api/auth/google  { idToken }
+        |
+        v
+ 5. Express -> verifies token with Google
+             (OAuth2Client.verifyIdToken)
+        |
+        v
+ 6. Express -> Find user by email, or Create if first login
+        |
+        v
+ 7. Express -> Generate JWT + set cookie (same as normal login)
+        |
+        v
+ 8. React -> receives success response, user is authenticated
+\end{verbatim}
+\end{diagrambox}
+
+\section{Google Cloud Console Setup}
+
+Before any code, register the app in the Google Cloud Console (APIs \& Services $\rightarrow$ Credentials $\rightarrow$ Create OAuth Client ID):
+
+\begin{itemize}
+  \item Choose \textbf{Web application} as the application type.
+  \item Add your frontend origin (e.g. \texttt{http://localhost:5173}) under \textbf{Authorized JavaScript origins}.
+  \item Add your callback/redirect URI under \textbf{Authorized redirect URIs}, if using the redirect-based flow rather than the popup-based Google Identity Services button.
+  \item Copy the generated \textbf{Client ID} and \textbf{Client Secret}.
+\end{itemize}
+
+\begin{lstlisting}[language=JavaScript]
+# .env
+GOOGLE_CLIENT_ID=1234567890-abc123.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxxxxxxxxxxxxxxxxxxxxxxx
+\end{lstlisting}
+
+\begin{warnbox}[Common Error: redirect\_uri\_mismatch]
+The most common Google OAuth setup error: the redirect URI your app sends must \emph{exactly} match one registered in the Cloud Console, byte for byte. Common mismatches:
+\begin{itemize}
+  \item Trailing slash or different port than what's registered.
+  \item \texttt{http} registered in dev but \texttt{https} used in production (Google treats these as separate URIs).
+  \item Subdomain mismatch, e.g. \texttt{app.example.com} vs \texttt{www.app.example.com}.
+\end{itemize}
+Fix it by copying the exact URI your app sends (visible in the error or network tab) and adding it to Authorized redirect URIs, or correcting your app's configured redirect URI to match.
+\end{warnbox}
+
+\section{Backend: Verifying the ID Token}
+
+Using \texttt{google-auth-library}, the backend receives the ID token from the frontend and verifies it directly with Google's servers -- confirming the token is genuine and was issued for \emph{your} Client ID.
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/authController.js
+import { OAuth2Client } from "google-auth-library";
+import User from "../models/User.js";
+import { generateToken } from "../utils/generateToken.js";
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+export const googleLogin = async (req, res, next) => {
+  try {
+    const { idToken } = req.body;
+
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { email, name, picture } = payload;
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // First-time Google login: create the account.
+      // No password is set for OAuth-only accounts.
+      user = await User.create({
+        name,
+        email,
+        avatar: picture,
+        password: undefined,
+        role: "user",
+      });
+    }
+
+    const token = generateToken(user._id);
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: { id: user._id, name: user.name, email: user.email, role: user.role },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// routes/authRoutes.js
+router.post("/auth/google", googleLogin);
+\end{lstlisting}
+
+\section{Handling the Password Field}
+
+Because Google-authenticated users never set a password, the User schema's \texttt{password} field must be optional:
+
+\begin{lstlisting}[language=JavaScript]
+// models/User.js
+password: { type: String, required: false },
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+If a Google-created account later attempts email/password login, guard \texttt{bcrypt.compare} with \texttt{if (!user.password)} first and return a clear "This account uses Google Sign-In" message instead of comparing against \texttt{undefined}.
+\end{notebox}
+
+\section{Subsequent Logins}
+
+On every later login, the same \texttt{googleLogin} controller runs: \texttt{User.findOne(\{ email \})} finds the existing account (skipping the creation branch), and a fresh JWT cookie is issued exactly as the first time. From the rest of the application's perspective -- middleware, controllers, frontend auth state -- a Google session and a password session are indistinguishable; both end with the same signed JWT cookie.
+
+\begin{tipbox}[TIP]
+Keep Google verification logic isolated to this one controller -- everything else deals only with your own JWT, never Google tokens directly. This makes adding a second OAuth provider later a matter of adding another controller, not rewriting existing auth logic.
+\end{tipbox}
+
+\whatwhyhow
+{An endpoint that accepts a Google-issued ID token from the frontend, verifies it server-side with Google, finds or creates a matching user, and issues your app's own JWT cookie.}
+{Letting the frontend alone decide "this user is authenticated with Google" would be trivially spoofable; server-side verification against Google's servers is the only trustworthy point, and re-using your existing JWT flow keeps the rest of the app provider-agnostic.}
+{Verify with \texttt{OAuth2Client.verifyIdToken}, \texttt{findOrCreate} the user by email, then call the exact same \texttt{generateToken} + \texttt{res.cookie} steps used for normal login.}

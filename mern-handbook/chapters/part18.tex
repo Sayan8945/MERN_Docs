@@ -1,0 +1,151 @@
+\chapter{JWT Authentication}
+
+Once a user's password is verified, the server needs a way to remember that
+this browser is "logged in" on every subsequent request -- without querying
+the database on every single request just to check a session table. A
+\textbf{JSON Web Token (JWT)} solves this by packing identity information
+into a signed, self-contained string that the server can verify without
+storing anything.
+
+\section{Anatomy of a JWT}
+
+A JWT is three base64url-encoded segments separated by dots:
+\texttt{header.payload.signature}.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Segment} & \textbf{Contents} \\
+\midrule
+Header & Metadata: the signing algorithm (e.g. \texttt{HS256}) and token type. \\
+Payload & Claims -- the actual data, e.g. \texttt{\{ id: userId, iat, exp \}}. Readable by anyone, not encrypted. \\
+Signature & \texttt{HMACSHA256(header + payload, JWT\_SECRET)}. Proves the token was issued by your server and hasn't been tampered with. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{warnbox}[WARNING]
+The payload is base64-encoded, not encrypted -- anyone with the token can
+decode and read it (try pasting one into jwt.io). Never put passwords,
+secrets, or sensitive personal data in a JWT payload. Only put identifiers
+like a user ID.
+\end{warnbox}
+
+\subsection{Expiration and Signing}
+
+Every token should carry an \texttt{exp} (expiration) claim so a stolen or
+leaked token becomes useless after a fixed window. The signature is produced
+using a secret key -- \texttt{process.env.JWT\_SECRET} -- that only your
+server knows. If that secret leaks, anyone can forge valid tokens for any
+user, so treat it like a password and never commit it to source control.
+
+\section{The Authentication Flow}
+
+\begin{diagrambox}[JWT Authentication Flow]
+\begin{verbatim}
+ 1. Browser -> POST /api/auth/login (email, password)
+ 2. Express -> Credentials verified (bcrypt.compare)
+ 3. Express -> JWT generated (jwt.sign, signed with JWT_SECRET)
+ 4. Express -> JWT sent to browser (in an HttpOnly cookie)
+ 5. Browser -> stores cookie automatically, sends it on every request
+ 6. Browser -> GET /api/tasks  (cookie attached automatically)
+ 7. Middleware -> reads token, verifies with jwt.verify
+ 8. Middleware -> decoded payload -> req.user = user document
+ 9. Protected Controller -> runs, trusting req.user
+\end{verbatim}
+\end{diagrambox}
+
+\section{Generating a Token}
+
+\begin{lstlisting}[language=JavaScript]
+// utils/generateToken.js
+import jwt from "jsonwebtoken";
+
+export const generateToken = (userId) => {
+  return jwt.sign(
+    { id: userId },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" }
+  );
+};
+\end{lstlisting}
+
+Used right after credentials are verified in the login controller:
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/authController.js
+import { generateToken } from "../utils/generateToken.js";
+
+export const loginUser = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ success: false, message: "Invalid credentials" });
+    }
+
+    const token = generateToken(user._id);
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: { id: user._id, name: user.name, role: user.role },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+Full cookie configuration (\texttt{secure}, \texttt{sameSite}, and why
+\texttt{httpOnly} matters) is covered in the next chapter. For now, focus on
+how the token itself is created and verified.
+\end{notebox}
+
+\section{Verifying a Token}
+
+\begin{lstlisting}[language=JavaScript]
+// middleware/authMiddleware.js
+import jwt from "jsonwebtoken";
+
+export const protect = async (req, res, next) => {
+  const token = req.cookies.token;
+  if (!token) {
+    return res.status(401).json({ success: false, message: "Not authenticated" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.userId = decoded.id; // full lookup covered in Chapter 20
+    next();
+  } catch (err) {
+    return res.status(401).json({ success: false, message: "Invalid or expired token" });
+  }
+};
+\end{lstlisting}
+
+\texttt{jwt.verify} checks the signature against \texttt{JWT\_SECRET} and
+automatically rejects the token if the \texttt{exp} claim has passed --
+either case throws, which is why it must be wrapped in \texttt{try/catch}.
+
+\begin{tipbox}[Advanced: Access Tokens vs Refresh Tokens]
+Larger production systems often split this into two tokens: a short-lived
+\textbf{access token} (minutes) used on every request, and a long-lived
+\textbf{refresh token} (days/weeks) used only to silently obtain a new
+access token when the old one expires. This limits the damage window if an
+access token leaks, at the cost of extra complexity (a refresh endpoint,
+refresh token storage/rotation, revocation logic). This book uses a single
+7-day token throughout to keep the implementation focused -- but know that
+the two-token pattern is the natural next step for a larger production
+system.
+\end{tipbox}
+
+\whatwhyhow
+{A JWT is a signed token containing a user identifier and expiration, generated on login and verified on every protected request.}
+{It lets the server confirm "who is this request from" without a database lookup on every request or server-side session storage, while still expiring automatically.}
+{Sign with \texttt{jwt.sign(\{id\}, JWT\_SECRET, \{expiresIn\})} at login, store it in a cookie, and verify with \texttt{jwt.verify(token, JWT\_SECRET)} inside middleware before any protected controller runs.}

@@ -1,0 +1,202 @@
+\chapter{File Uploads (Multer + Cloudinary)}
+
+\section{The Upload Pipeline}
+
+Uploading a profile avatar or a task attachment involves three separate
+concerns: getting the raw file bytes off the HTTP request (Multer), storing
+them somewhere durable and CDN-backed (Cloudinary), and saving the resulting
+URL on a MongoDB document so the rest of the app can reference it like any
+other field.
+
+\begin{diagrambox}[Upload Pipeline]
+\begin{verbatim}
+React (file input) --> FormData --> POST multipart/form-data
+        |
+        v
+   Multer middleware (parses multipart body, exposes req.file)
+        |
+        v
+   Cloudinary (cloudinary.uploader.upload)
+        |
+        v
+   secure_url returned
+        |
+        v
+   Save url on User/Task document in MongoDB
+\end{verbatim}
+\end{diagrambox}
+
+\subsection{Why multipart/form-data}
+
+JSON bodies (\texttt{application/json}) can only carry text. Binary file
+data is sent using the \texttt{multipart/form-data} encoding, which packs
+each form field --- text or file --- into its own labeled part of the request
+body. \texttt{express.json()} cannot parse this format at all, which is why
+a dedicated middleware (Multer) is required specifically for routes that
+accept files.
+
+\section{Backend: Multer Configuration}
+
+Multer can buffer files in memory or write them to disk. Since the buffer is
+being immediately forwarded to Cloudinary rather than kept locally, memory
+storage avoids an unnecessary disk write.
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/middleware/upload.middleware.js
+const multer = require("multer");
+
+const storage = multer.memoryStorage();
+
+const fileFilter = (req, file, cb) => {
+  const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp"];
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Only JPEG, PNG, or WEBP images are allowed"), false);
+  }
+};
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB max
+});
+
+module.exports = upload;
+\end{lstlisting}
+
+\subsection{Cloudinary Configuration}
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/config/cloudinary.js
+const cloudinary = require("cloudinary").v2;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+module.exports = cloudinary;
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+\texttt{CLOUDINARY\_CLOUD\_NAME}, \texttt{CLOUDINARY\_API\_KEY}, and
+\texttt{CLOUDINARY\_API\_SECRET} come from the Cloudinary dashboard and
+belong in \texttt{.env}, never committed to source control (see
+Chapter~24 on environment configuration).
+\end{notebox}
+
+\subsection{Controller: Upload and Save}
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/controllers/user.controller.js
+const cloudinary = require("../config/cloudinary");
+const User = require("../models/User");
+
+const uploadAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+
+    // Convert the in-memory buffer to a data URI Cloudinary can accept
+    const base64 = req.file.buffer.toString("base64");
+    const dataUri = `data:${req.file.mimetype};base64,${base64}`;
+
+    const result = await cloudinary.uploader.upload(dataUri, {
+      folder: "task-app/avatars",
+      resource_type: "image",
+    });
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { avatar: result.secure_url },
+      { new: true }
+    ).select("-password");
+
+    res.status(200).json({ user });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { uploadAvatar };
+\end{lstlisting}
+
+\subsection{Route Wiring}
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/routes/user.routes.js
+const express = require("express");
+const upload = require("../middleware/upload.middleware");
+const { uploadAvatar } = require("../controllers/user.controller");
+const { protect } = require("../middleware/auth.middleware");
+
+const router = express.Router();
+
+router.post("/me/avatar", protect, upload.single("avatar"), uploadAvatar);
+
+module.exports = router;
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+The field name passed to \texttt{upload.single("avatar")} must exactly match
+the key the frontend appends to \texttt{FormData}. A mismatch results in
+\texttt{req.file} being \texttt{undefined} with no error thrown.
+\end{warnbox}
+
+\section{Frontend: Building and Sending FormData}
+
+\begin{lstlisting}[language=JavaScript]
+// frontend/src/components/AvatarUploader.jsx
+import { useState } from "react";
+import api from "../services/api";
+
+function AvatarUploader({ onUploaded }) {
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("avatar", file); // key MUST match upload.single("avatar")
+
+    setUploading(true);
+    try {
+      const { data } = await api.post("/users/me/avatar", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      onUploaded(data.user.avatar);
+    } catch (error) {
+      console.error("Upload failed:", error.response?.data?.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="file"
+        accept="image/png, image/jpeg, image/webp"
+        onChange={(e) => setFile(e.target.files[0])}
+      />
+      <button type="submit" disabled={!file || uploading}>
+        {uploading ? "Uploading..." : "Upload Avatar"}
+      </button>
+    </form>
+  );
+}
+
+export default AvatarUploader;
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+Axios will set the correct \texttt{multipart/form-data} boundary
+automatically when you pass a \texttt{FormData} instance as the body --
+explicitly setting the \texttt{Content-Type} header is optional in most
+setups, but harmless to include for clarity.
+\end{tipbox}

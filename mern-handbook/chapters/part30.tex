@@ -1,0 +1,106 @@
+\chapter{MongoDB Indexing}
+
+\section{What an Index Actually Does}
+
+Without an index, MongoDB has to perform a \textbf{collection scan} --- check
+every single document against the query filter, one by one. An index is a
+separate, ordered data structure (conceptually similar to a book's index)
+that maps field values directly to the documents that contain them, so
+MongoDB can jump straight to matches instead of scanning everything.
+
+\begin{diagrambox}[Without an Index]
+\begin{verbatim}
+Query: { status: "completed" }
+        |
+        v
+   Scan document 1 -> check status -> no match
+   Scan document 2 -> check status -> no match
+   Scan document 3 -> check status -> match!
+   ... (continues for every document in the collection)
+\end{verbatim}
+\end{diagrambox}
+
+\begin{diagrambox}[With an Index]
+\begin{verbatim}
+Query: { status: "completed" }
+        |
+        v
+   Look up "completed" in the status index
+        |
+        v
+   Index points directly at matching documents
+        |
+        v
+   Return matches (no scan of unrelated documents)
+\end{verbatim}
+\end{diagrambox}
+
+\section{Unique Indexes}
+
+A unique index both speeds up lookups \emph{and} enforces that no two
+documents can share the same value for that field. Declaring
+\texttt{unique: true} on a schema field creates this index automatically.
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/models/User.js
+const userSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: true,
+    unique: true, // creates a unique index on `email`
+    lowercase: true,
+    trim: true,
+  },
+  password: { type: String, required: true },
+});
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+A unique index is what actually causes the duplicate-email
+\texttt{E11000 duplicate key error} at the database layer, which your error
+handler can translate into a clean \texttt{409 Conflict} response (see
+Chapter~25).
+\end{notebox}
+
+\section{Compound Indexes}
+
+A compound index covers multiple fields together, and is especially valuable
+when a query filters on one field and sorts on another --- exactly the
+search/filter/sort pattern from Chapter~28.
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/models/Task.js
+const taskSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  status: { type: String, enum: ["pending", "in-progress", "completed"] },
+  owner: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+}, { timestamps: true });
+
+// Speeds up: Task.find({ status: "completed" }).sort({ createdAt: -1 })
+taskSchema.index({ status: 1, createdAt: -1 });
+
+module.exports = mongoose.model("Task", taskSchema);
+\end{lstlisting}
+
+The order of fields in a compound index matters: this index efficiently
+supports queries that filter on \texttt{status} alone, or on
+\texttt{status} + sort by \texttt{createdAt}, but is less useful for a query
+that sorts by \texttt{createdAt} without filtering on \texttt{status} at all.
+
+\section{When to Add an Index}
+
+\begin{notebox}[NOTE]
+Add an index when a field is frequently used to \textbf{filter}
+(\texttt{status}, \texttt{owner}), \textbf{sort} (\texttt{createdAt}), or
+\textbf{look up uniquely} (\texttt{email}). These are exactly the fields
+that appear in \texttt{.find()}, \texttt{.sort()}, or lookup queries across
+the app's most common requests.
+\end{notebox}
+
+\begin{warnbox}[WARNING]
+Indexes are not free. Every index has to be updated on every insert, update,
+and delete, which slows down writes, and every index consumes additional
+disk and memory. Don't index every field ``just in case'' --- only index
+fields that are actually queried or sorted on frequently, and periodically
+review indexes on collections that see heavy write traffic.
+\end{warnbox}

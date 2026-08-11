@@ -1,0 +1,181 @@
+\chapter{API Loading and Error States}
+
+Every component that fetches data from an API passes through the same
+handful of states, whether it is a task list, a user profile, or a
+dashboard widget. Handling these states consistently is what separates an
+app that feels broken during a slow network from one that feels solid.
+
+\section{The State Chain}
+
+At minimum, a data-fetching component moves through \texttt{idle},
+\texttt{loading}, and then either \texttt{success} or \texttt{error}. A
+well-behaved component never leaves the user staring at a blank screen or a
+frozen spinner.
+
+\begin{diagrambox}[API Component State Chain]
+\begin{verbatim}
+   idle
+    |
+    |  useEffect fires -> fetch starts
+    v
+ loading  ------------------------> (spinner / skeleton shown)
+    |
+    +---------------------+
+    |                      |
+    v                      v
+ success                error
+    |                      |
+    v                      v
+ data.length === 0?   show error message
+    |         |            + Retry button
+   yes        no                |
+    |          |                v
+    v          v          user clicks Retry
+ empty state  render list  ---> back to loading
+\end{verbatim}
+\end{diagrambox}
+
+\begin{notebox}[NOTE]
+There are really four visible outcomes, not two: \textbf{loading},
+\textbf{error}, \textbf{empty} (success but no data), and \textbf{populated}
+(success with data). Most bugs in real apps come from forgetting the empty
+state and assuming success always means "there is a list to render."
+\end{notebox}
+
+\section{Implementing the Pattern}
+
+The same three pieces of state --- data, loading, error --- cover almost
+every fetching component in the app.
+
+\begin{lstlisting}[language=JavaScript]
+// components/TaskList.jsx
+import { useEffect, useState } from "react";
+import api from "../api/axios";
+
+function TaskList() {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchTasks = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.get("/tasks");
+      setTasks(res.data.data);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to load tasks");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  if (loading) return <Spinner />;
+
+  if (error) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-600 mb-3">{error}</p>
+        <button onClick={fetchTasks} className="px-4 py-2 bg-blue-600 text-white rounded">
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!tasks.length) {
+    return <p className="text-gray-500 text-center py-8">No tasks yet. Create your first one!</p>;
+  }
+
+  return (
+    <ul className="space-y-2">
+      {tasks.map((task) => (
+        <li key={task._id}>{task.title}</li>
+      ))}
+    </ul>
+  );
+}
+
+export default TaskList;
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+Always reset \texttt{error} to \texttt{null} at the start of a new fetch
+attempt. Without it, a successful retry can leave a stale error message
+rendered alongside (or instead of) the fresh data, because \texttt{error}
+never got cleared.
+\end{warnbox}
+
+\section{Loading Spinners}
+
+A spinner is the simplest loading indicator --- appropriate for fast,
+small requests where showing structure would be overkill.
+
+\begin{lstlisting}[language=JavaScript]
+// components/Spinner.jsx
+function Spinner() {
+  return (
+    <div className="flex justify-center items-center py-8">
+      <div className="h-8 w-8 border-4 border-blue-600 border-t-transparent
+                       rounded-full animate-spin" />
+    </div>
+  );
+}
+
+export default Spinner;
+\end{lstlisting}
+
+\section{Skeleton Screens}
+
+For content-heavy views (task cards, profile pages), a skeleton that mimics
+the eventual layout reduces perceived loading time better than a spinner,
+because the user sees the shape of what's coming.
+
+\begin{lstlisting}[language=JavaScript]
+// components/TaskCardSkeleton.jsx
+function TaskCardSkeleton() {
+  return (
+    <div className="border rounded-lg p-4 space-y-3 animate-pulse">
+      <div className="h-4 bg-gray-200 rounded w-3/4" />
+      <div className="h-3 bg-gray-200 rounded w-1/2" />
+      <div className="h-3 bg-gray-200 rounded w-full" />
+    </div>
+  );
+}
+
+// Usage while loading:
+// {loading
+//   ? Array.from({ length: 4 }).map((_, i) => <TaskCardSkeleton key={i} />)
+//   : tasks.map((t) => <TaskCard key={t._id} task={t} />)}
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+Use spinners for quick actions (button clicks, form submits) and skeletons
+for initial page/list loads. A spinner on a full list load makes the whole
+page flash blank-then-full; a skeleton feels smoother because the layout
+never jumps.
+\end{tipbox}
+
+\section{Choosing the Right State to Show}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Situation} & \textbf{What to Render} \\
+\midrule
+Request in flight & Spinner (short lists/actions) or skeleton (page loads) \\
+Request failed & Error message + Retry button, never a blank screen \\
+Request succeeded, empty array & Friendly empty state with a call to action (e.g.\ "Create your first task") \\
+Request succeeded, has data & The actual list/content \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\whatwhyhow
+{Every API-driven component tracks \texttt{loading}, \texttt{error}, and \texttt{data} state and renders a different UI for each combination.}
+{Without explicit states, slow networks show blank screens, failed requests show nothing or crash the app, and empty results look indistinguishable from a bug.}
+{Wrap the fetch in try/catch/finally, set the three state variables accordingly, and branch the render with early returns: loading first, then error (with Retry), then empty, then the populated view.}

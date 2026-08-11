@@ -1,0 +1,147 @@
+\chapter{Components and Pages}
+
+\section{Component Tree}
+
+A realistic component tree for the dashboard screen of the Task Management
+System looks like this:
+
+\begin{diagrambox}[Task Manager Component Tree]
+\begin{verbatim}
+App
+|-- Navbar
+|-- MainLayout
+|   |-- Sidebar
+|   `-- <Outlet/>  (Routes render here)
+|       |-- Dashboard (page)
+|       |   |-- StatsCard  x3   (Total / Pending / Done)
+|       |   `-- TaskList
+|       |       `-- TaskCard  (one per task)
+|       `-- Profile (page)
+\end{verbatim}
+\end{diagrambox}
+
+\textbf{Reusable components} (\texttt{StatsCard}, \texttt{TaskCard}, \texttt{TaskList}) know
+nothing about routing or data fetching -- they receive data via props and
+render it. \textbf{Page components} (\texttt{Dashboard}, \texttt{Profile}) own the data
+fetching and pass slices of it down. \textbf{Layouts} (\texttt{MainLayout}) provide
+the persistent chrome (nav, sidebar) around whichever page is active.
+
+\section{A Reusable Component}
+
+\begin{lstlisting}[language=JavaScript]
+// components/TaskCard.jsx
+export default function TaskCard({ task, onStatusChange }) {
+  const statusColor = {
+    pending: "gray",
+    "in-progress": "orange",
+    done: "green",
+  }[task.status];
+
+  return (
+    <div className="task-card">
+      <h3>{task.title}</h3>
+      <p>{task.description}</p>
+      <span className={`badge badge-${statusColor}`}>{task.status}</span>
+
+      {task.status !== "done" && (
+        <button onClick={() => onStatusChange(task._id, "done")}>
+          Mark Done
+        </button>
+      )}
+    </div>
+  );
+}
+\end{lstlisting}
+
+Note the pattern: \texttt{TaskCard} receives \texttt{task} and a callback
+\texttt{onStatusChange} as props. It never calls the API itself -- that keeps it
+reusable and easy to test in isolation.
+
+\section{A Page Component}
+
+\begin{lstlisting}[language=JavaScript]
+// pages/Dashboard.jsx
+import { useEffect, useState } from "react";
+import TaskList from "../components/TaskList";
+import StatsCard from "../components/StatsCard";
+import { getTasks, updateTaskStatus } from "../services/taskService";
+
+export default function Dashboard() {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getTasks()
+      .then((data) => setTasks(data))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleStatusChange = async (id, status) => {
+    const updated = await updateTaskStatus(id, status);
+    setTasks((prev) => prev.map((t) => (t._id === id ? updated : t)));
+  };
+
+  if (loading) return <p>Loading tasks...</p>;
+
+  const pending = tasks.filter((t) => t.status === "pending").length;
+  const done = tasks.filter((t) => t.status === "done").length;
+
+  return (
+    <div className="dashboard">
+      <div className="stats-row">
+        <StatsCard label="Total" value={tasks.length} />
+        <StatsCard label="Pending" value={pending} />
+        <StatsCard label="Done" value={done} />
+      </div>
+      <TaskList tasks={tasks} onStatusChange={handleStatusChange} />
+    </div>
+  );
+}
+\end{lstlisting}
+
+\texttt{Dashboard} owns the state (\texttt{tasks}, \texttt{loading}) and the data
+fetching, then hands everything down as props. This is the standard
+``smart page, dumb component'' split used throughout the book.
+
+\section{Forms and Conditional Rendering}
+
+\begin{lstlisting}[language=JavaScript]
+// components/TaskForm.jsx
+import { useState } from "react";
+
+export default function TaskForm({ onCreate }) {
+  const [form, setForm] = useState({ title: "", description: "" });
+  const [error, setError] = useState("");
+
+  const handleChange = (e) =>
+    setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.title.trim()) return setError("Title is required");
+
+    await onCreate(form);
+    setForm({ title: "", description: "" });
+    setError("");
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input name="title" value={form.title} onChange={handleChange} />
+      <textarea
+        name="description"
+        value={form.description}
+        onChange={handleChange}
+      />
+      {error && <p className="error">{error}</p>}
+      <button type="submit">Create Task</button>
+    </form>
+  );
+}
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+Use the spread operator (\texttt{...form}) to update one field of an object in
+state without losing the others, and computed keys (\texttt{[e.target.name]})
+to reuse a single \texttt{handleChange} for every input in the form.
+\end{tipbox}

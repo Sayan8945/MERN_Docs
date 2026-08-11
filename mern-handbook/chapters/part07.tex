@@ -1,0 +1,104 @@
+\chapter{Axios and the Frontend API Layer}
+
+\section{A Centralized Axios Instance}
+
+Every service file in the app should import one shared, pre-configured axios
+instance rather than calling \texttt{axios.get(...)} directly with a hardcoded URL.
+
+\begin{lstlisting}[language=JavaScript]
+// src/api/axios.js
+import axios from "axios";
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL, // e.g. http://localhost:5000/api
+  withCredentials: true,                 // send the JWT cookie automatically
+  headers: { "Content-Type": "application/json" },
+});
+
+export default api;
+\end{lstlisting}
+
+\begin{itemize}
+  \item \textbf{baseURL} -- every call to \texttt{api.get("/tasks")} actually hits \texttt{\{VITE\_API\_URL\}/tasks}, so the URL never needs to be repeated.
+  \item \textbf{headers} -- default headers applied to every request; individual calls can still override them.
+  \item \textbf{withCredentials} -- required for cookie-based JWT auth (Chapter 14) so the browser attaches the HTTP-only auth cookie on cross-origin requests.
+\end{itemize}
+
+\begin{notebox}[NOTE]
+\texttt{import.meta.env.VITE\_API\_URL} comes from Vite's env system. Define it in
+\texttt{frontend/.env} as \texttt{VITE\_API\_URL=http://localhost:5000/api} -- Vite only
+exposes variables prefixed with \texttt{VITE\_} to client code.
+\end{notebox}
+
+\section{Interceptors}
+
+Interceptors let you run code on \emph{every} request or response without
+repeating it in each service function.
+
+\begin{lstlisting}[language=JavaScript]
+// src/api/axios.js (continued)
+import { store } from "../store"; // or however you track loading globally
+
+api.interceptors.request.use((config) => {
+  store.setLoading(true);
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => {
+    store.setLoading(false);
+    return response;
+  },
+  (error) => {
+    store.setLoading(false);
+
+    if (error.response?.status === 401) {
+      window.location.href = "/login"; // session expired or invalid
+    }
+
+    return Promise.reject(error);
+  }
+);
+\end{lstlisting}
+
+This pattern gives every screen a global loading indicator and a single place
+that handles ``you got logged out'' -- individual components don't need to
+check for 401 themselves.
+
+\section{Error Handling in Service Functions}
+
+\begin{lstlisting}[language=JavaScript]
+// services/taskService.js
+import api from "../api/axios";
+
+export async function getTasks() {
+  try {
+    const res = await api.get("/tasks");
+    return res.data.data; // unwrap { success, data }
+  } catch (err) {
+    const message = err.response?.data?.message || "Failed to load tasks";
+    throw new Error(message);
+  }
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// pages/Dashboard.jsx (usage)
+useEffect(() => {
+  getTasks()
+    .then(setTasks)
+    .catch((err) => setError(err.message));
+}, []);
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+Keep \texttt{try/catch} inside the service function, not scattered across every
+component. Components should only need to handle the friendly error message
+that the service throws, not raw axios error objects.
+\end{tipbox}
+
+\begin{warnbox}[WARNING]
+Don't swallow errors silently (\texttt{catch(() => \{\})}). At minimum, surface a
+message in the UI or log it -- a request that silently fails is far harder to
+debug than one that throws visibly.
+\end{warnbox}

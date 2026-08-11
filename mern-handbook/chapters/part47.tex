@@ -1,0 +1,46 @@
+\chapter{End-to-End Implementation Order}
+
+\begin{notebox}[NOTE]
+This is the order to actually build a new MERN project, start to finish.
+Each step references the chapter that covers it in depth.
+\end{notebox}
+
+\begin{enumerate}
+\item \textbf{Create frontend} (Vite + React) --- Chapter 2, 3
+\item \textbf{Create backend} (Node + Express project) --- Chapter 2
+\item \textbf{Configure Express} (\texttt{app.js}, middleware, \texttt{server.js}) --- Chapter 9
+\item \textbf{Connect MongoDB} (\texttt{mongoose.connect} in \texttt{server.js}) --- Chapter 12
+\item \textbf{Create User model} (Mongoose schema) --- Chapter 13
+\item \textbf{Create Task model} (Mongoose schema, relations) --- Chapter 13, 15
+\item \textbf{Create auth routes} (\texttt{/register}, \texttt{/login}, \texttt{/logout}, \texttt{/me}) --- Chapter 10, 16
+\item \textbf{Create auth controllers} (register/login/logout logic) --- Chapter 16
+\item \textbf{Implement bcrypt} (hash on save, compare on login) --- Chapter 17
+\item \textbf{Implement JWT} (sign a token on successful login) --- Chapter 18
+\item \textbf{Implement cookies} (send the JWT as an HttpOnly cookie) --- Chapter 19
+\item \textbf{Create auth middleware} (\texttt{protect}, \texttt{authorize}) --- Chapter 20, 21
+\item \textbf{Create task APIs} (routes for the Task resource) --- Chapter 10, 14
+\item \textbf{Create CRUD} (controllers + service layer for tasks) --- Chapter 11, 14
+\item \textbf{Create React routes} (React Router setup, protected routes) --- Chapter 5
+\item \textbf{Create AuthContext} (global auth state on the frontend) --- Chapter 32
+\item \textbf{Create Axios instance} (baseURL, \texttt{withCredentials}, interceptors) --- Chapter 7
+\item \textbf{Connect APIs} (wire pages to the api/ layer end to end) --- Chapter 8
+\item \textbf{Build forms} (login, register, task create/edit) --- Chapter 34
+\item \textbf{Build dashboard} (stats, counts, aggregation queries) --- Chapter 31, 46
+\item \textbf{Add search/filter} (query params on the list endpoint) --- Chapter 28
+\item \textbf{Add pagination} (skip/limit or cursor-based) --- Chapter 29
+\item \textbf{Add image upload} (Multer + Cloudinary) --- Chapter 27
+\item \textbf{Add validation} (backend request validation) --- Chapter 23
+\item \textbf{Add security} (rate limiting, headers, sanitization) --- Chapter 37
+\item \textbf{Test with Postman} (every endpoint, happy path + errors) --- Chapter 14, 25
+\item \textbf{Test frontend} (manual pass through every screen and state) --- Chapter 33, 36
+\item \textbf{Configure production} (env vars, CORS origin, cookie flags) --- Chapter 44
+\item \textbf{Deploy} (build frontend, start backend, connect Atlas) --- Chapter 44
+\item \textbf{Test production} (repeat the Postman/frontend pass against live URLs) --- Chapter 45
+\end{enumerate}
+
+\begin{tipbox}[TIP]
+Steps 1--17 form the "skeleton" --- once auth and one full CRUD resource
+work end to end, every additional feature (search, pagination, uploads)
+is an incremental addition to an already-working request/response loop,
+not a new architecture.
+\end{tipbox}

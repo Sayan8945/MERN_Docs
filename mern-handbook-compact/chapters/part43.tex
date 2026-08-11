@@ -1,0 +1,86 @@
+\chapter{Authentication Errors}
+
+\begin{notebox}[NOTE]
+Errors specific to the login/session/OAuth path --- narrower than Chapter 42 but common enough for their own reference.
+\end{notebox}
+
+\subsubsection*{401 Unauthorized}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Protected route reached with no valid identity --- no token, expired, or invalid. \\
+Identify & Status \texttt{401}; body says "Not authorized" or "No token provided." \\
+Solution & Confirm user is logged in and the cookie/token is sent; re-authenticate if expired. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{403 Forbidden}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & User is authenticated but lacks the required role/permission. \\
+Identify & Status \texttt{403}, distinct from \texttt{401} --- identity known, access denied. \\
+Solution & Expected for role-based routes; verify role matches \texttt{authorize(...)} (Ch. 21). \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{JWT Not Found (Cookie Missing)}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Auth cookie never set, or browser didn't send it back. \\
+Identify & \texttt{req.cookies.token} is \texttt{undefined} in \texttt{protect}. \\
+Solution & Confirm login set the cookie (DevTools $\to$ Application $\to$ Cookies); check credentials. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{JWT Invalid}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Same as Ch. 42 --- secret mismatch or tampered token --- via \texttt{protect} middleware. \\
+Identify & \texttt{jwt.verify()} throws inside \texttt{protect}; \texttt{401} "Invalid token." \\
+Solution & Clear the bad cookie, force re-login; verify \texttt{JWT\_SECRET} consistency. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{JWT Expired}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Token's \texttt{expiresIn} lifetime elapsed since login. \\
+Identify & \texttt{TokenExpiredError} in \texttt{protect}; sudden \texttt{401} on every request. \\
+Solution & Prompt re-login on \texttt{401}; Axios interceptor should redirect to \texttt{/login} (Ch. 33). \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Cookie Not Sent}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Axios missing \texttt{withCredentials: true}, or backend \texttt{cors()} missing \texttt{credentials: true}. \\
+Identify & Cookie set in DevTools after login, but \texttt{req.cookies} empty on later requests. \\
+Solution & Set \texttt{withCredentials: true} on Axios \emph{and} \texttt{credentials: true} on backend CORS. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Google OAuth: redirect\_uri\_mismatch}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Redirect URI sent doesn't exactly match one configured in Google Cloud Console. \\
+Identify & Google shows "Error 400: redirect\_uri\_mismatch" instead of the login prompt. \\
+Solution & Copy the exact callback URL into Google Cloud Console, matching scheme and port. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Google OAuth: invalid\_client}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Wrong/missing \texttt{GOOGLE\_CLIENT\_ID}/\texttt{SECRET}, or wrong Google Cloud project. \\
+Identify & Google returns "Error 401: invalid\_client" before the consent screen. \\
+Solution & Re-copy client ID/secret from the correct project into \texttt{.env}, restart backend. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{UI Not Updating After Login}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Cookie was set, but \texttt{AuthContext}'s \texttt{user} state never refreshed. \\
+Identify & Login response succeeds, but navbar/protected routes still look unauthenticated. \\
+Solution & After login, update context state directly (or re-fetch \texttt{/auth/me}) (Ch. 32). \\
+\bottomrule
+\end{tabularx}

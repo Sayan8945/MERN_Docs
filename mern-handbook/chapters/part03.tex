@@ -1,0 +1,70 @@
+\chapter{React Project Structure}
+
+A flat \texttt{src/} folder works for a to-do demo. It falls apart the moment
+your app has auth, protected routes, and more than three pages. Here is the
+structure used throughout this book for the Task Management System.
+
+\begin{diagrambox}[frontend/src Structure]
+\begin{verbatim}
+frontend/src/
+|-- api/
+|   `-- axios.js          (single configured axios instance)
+|-- services/
+|   |-- authService.js    (login, register, logout)
+|   `-- taskService.js    (getTasks, createTask, updateTask...)
+|-- components/
+|   |-- TaskCard.jsx
+|   |-- TaskList.jsx
+|   `-- Navbar.jsx
+|-- pages/
+|   |-- Dashboard.jsx
+|   |-- Login.jsx
+|   `-- TaskDetails.jsx
+|-- layouts/
+|   `-- MainLayout.jsx    (Navbar + Sidebar + <Outlet/>)
+|-- hooks/
+|   `-- useAuth.js
+|-- context/
+|   `-- AuthContext.jsx
+|-- utils/
+|   `-- formatDate.js
+|-- assets/
+|   `-- logo.svg
+|-- App.jsx
+`-- main.jsx
+\end{verbatim}
+\end{diagrambox}
+
+\section{What Goes Where}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{Folder} & \textbf{Contains} & \textbf{Should NOT contain} \\
+\midrule
+\texttt{components/} & Small, reusable, presentation-focused UI pieces (\texttt{TaskCard}, \texttt{Button}, \texttt{Navbar}) & Route definitions, data fetching logic, page-level layout \\
+\texttt{pages/} & Route-level components that compose components into a full screen (\texttt{Dashboard}, \texttt{Login}) & Low-level reusable UI meant to be shared across pages \\
+\texttt{layouts/} & Shell components wrapping multiple pages (header/sidebar + \texttt{<Outlet/>}) & Business logic or data fetching for a specific feature \\
+\texttt{hooks/} & Custom hooks encapsulating reusable stateful logic (\texttt{useAuth}, \texttt{useDebounce}) & JSX markup / rendered UI \\
+\texttt{context/} & React Context providers and their state (\texttt{AuthContext}, \texttt{ThemeContext}) & One-off local component state that doesn't need to be global \\
+\texttt{services/} & Functions that call the \texttt{api/} layer for a specific resource (\texttt{taskService.getTasks}) & Raw axios configuration, JSX \\
+\texttt{api/} & The axios instance itself: base URL, interceptors, headers & Business logic specific to one resource \\
+\texttt{utils/} & Pure helper functions with no React or network dependency (\texttt{formatDate}, \texttt{truncate}) & Components, hooks, anything using \texttt{useState} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{notebox}[NOTE]
+The distinction between \texttt{api/} and \texttt{services/} matters: \texttt{api/axios.js}
+knows nothing about ``tasks'' or ``users'' -- it's generic HTTP plumbing.
+\texttt{services/taskService.js} knows the specific endpoints and payload
+shapes for tasks. This separation means changing your backend's base URL
+never requires touching business logic files.
+\end{notebox}
+
+\begin{tipbox}[TIP]
+A quick test for ``does this belong in \texttt{components/} or \texttt{pages/}?'':
+if it needs its own route in \texttt{App.jsx}, it's a page. If it's used inside
+two or more pages, it's a component.
+\end{tipbox}

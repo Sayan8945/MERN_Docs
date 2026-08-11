@@ -1,0 +1,156 @@
+\chapter{Frontend Error Boundaries}
+
+Not every frontend error is an API error. A malformed prop, a
+\texttt{undefined.map()}, or a third-party component throwing during render
+will crash the entire React tree with a blank white screen unless something
+catches it. That "something" is an Error Boundary.
+
+\section{Render Errors vs. API Errors}
+
+\begin{warnbox}[WARNING]
+Error Boundaries only catch errors thrown during \textbf{rendering},
+\textbf{lifecycle methods}, and \textbf{constructors} of the component tree
+below them. They do \emph{not} catch errors inside event handlers, async
+code (\texttt{setTimeout}, promises), or \texttt{fetch}/\texttt{axios}
+calls. A failed API request is handled by the try/catch and \texttt{error}
+state pattern from Chapter~33 --- Error Boundaries are a separate,
+complementary safety net for unexpected render-time crashes.
+\end{warnbox}
+
+\begin{diagrambox}[What Each Mechanism Catches]
+\begin{verbatim}
+ Error type                  | Caught by
+ ----------------------------|----------------------------
+ Component throws while      | Error Boundary
+ rendering (bad prop, null   |
+ access, etc.)                |
+ ----------------------------|----------------------------
+ API call fails (network,    | try/catch + error state
+ 4xx/5xx response)            | (Chapter 33)
+ ----------------------------|----------------------------
+ Error thrown inside an      | Local try/catch in the
+ onClick/onSubmit handler     | handler itself
+\end{verbatim}
+\end{diagrambox}
+
+\section{Building an ErrorBoundary}
+
+Error Boundaries must currently be class components --- there is no hook
+equivalent for \texttt{getDerivedStateFromError} or
+\texttt{componentDidCatch}.
+
+\begin{lstlisting}[language=JavaScript]
+// components/ErrorBoundary.jsx
+import { Component } from "react";
+
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    // Runs during the render phase; return new state to trigger the fallback UI.
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    // Runs after render; safe place to log to a monitoring service.
+    console.error("ErrorBoundary caught:", error, errorInfo);
+  }
+
+  handleReset = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 text-center">
+          <h2 className="text-lg font-semibold text-red-600 mb-2">
+            Something went wrong.
+          </h2>
+          <p className="text-sm text-gray-600 mb-4">
+            {this.state.error?.message || "An unexpected error occurred."}
+          </p>
+          <button
+            onClick={this.handleReset}
+            className="px-4 py-2 bg-blue-600 text-white rounded"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+export default ErrorBoundary;
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+\texttt{getDerivedStateFromError} must be a static method returning the new
+state; it cannot perform side effects like logging. \texttt{componentDidCatch}
+is where you send the error to a logging service (Sentry, LogRocket, or your
+own endpoint) since it runs after the render phase completes.
+\end{notebox}
+
+\section{Wrapping the App}
+
+Wrap boundaries around independent sections rather than one boundary around
+the entire app --- that way a crash in one section (say, a chart widget)
+doesn't take down the navbar and the rest of the page with it.
+
+\begin{lstlisting}[language=JavaScript]
+// App.jsx
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import ErrorBoundary from "./components/ErrorBoundary";
+import Navbar from "./components/Navbar";
+import TaskListPage from "./pages/TaskListPage";
+import ProfilePage from "./pages/ProfilePage";
+
+function App() {
+  return (
+    <BrowserRouter>
+      {/* Navbar has its own boundary so a nav crash doesn't hide the rest of the page */}
+      <ErrorBoundary>
+        <Navbar />
+      </ErrorBoundary>
+
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/tasks" element={<TaskListPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+        </Routes>
+      </ErrorBoundary>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+Granular boundaries (per route, or per risky widget) contain the damage of a
+crash to just that section. A single app-wide boundary is easier to set up
+but turns any unrelated bug into a full-page failure with no navigation left
+to escape from.
+\end{tipbox}
+
+\section{Error Boundaries Do Not Replace API Error Handling}
+
+Wrapping a component in an \texttt{ErrorBoundary} does nothing for a failed
+\texttt{axios} call inside its \texttt{useEffect} --- that promise
+rejection happens outside React's render cycle, so the boundary never sees
+it. Every data-fetching component still needs its own \texttt{loading} /
+\texttt{error} / retry handling as covered in Chapter~33. Error Boundaries
+exist purely to stop unexpected render crashes from blanking the whole
+screen; they are a last line of defense, not a substitute for handling
+expected failure modes like a down API or a 500 response.
+
+\whatwhyhow
+{A class-based ErrorBoundary uses \texttt{getDerivedStateFromError} and \texttt{componentDidCatch} to catch render/lifecycle errors in its child tree and show a fallback UI instead of a blank screen.}
+{Uncaught render errors crash the entire React tree with no recovery path; API/async errors need separate handling because boundaries cannot see them.}
+{Wrap independent sections of the app (navbar, route content, risky widgets) in their own \texttt{<ErrorBoundary>}, and keep using try/catch plus loading/error state (Chapter~33) for every API call.}

@@ -1,0 +1,92 @@
+\chapter{Debugging MERN Applications}
+
+A MERN bug can live in the frontend, network layer, backend route,
+controller, or database. Checking a fixed sequence of points, in order,
+tells you which layer the problem is in before you write a fix.
+
+\section{The Core Principle}
+
+Each layer can only pass along what the layer before it produced. If the
+request body at the controller is empty, no controller logic fixes it ---
+the bug is upstream. Working the checklist in order means you stop at the
+first point where reality departs from expectation.
+
+\section{The Debugging Checklist}
+
+\begin{enumerate}
+\item \textbf{Browser Console} --- any thrown JS errors or warnings?
+\item \textbf{Network tab} --- was the request even sent?
+\item \textbf{Request URL} --- is it the exact endpoint you think it is?
+\item \textbf{HTTP method} --- \texttt{GET}/\texttt{POST}/\texttt{PUT}/\texttt{DELETE} as expected?
+\item \textbf{Request body} --- does it contain the expected data, in the right shape?
+\item \textbf{Headers} --- is \texttt{Content-Type} (and the auth cookie) present?
+\item \textbf{Status code} --- 2xx, or a 4xx/5xx?
+\item \textbf{Response body} --- what did the server actually say?
+\item \textbf{Backend terminal} --- any stack trace or logged error?
+\item \textbf{Route} --- is the request reaching the route you expect?
+\item \textbf{Controller} --- is the logic doing what you think with the input received?
+\item \textbf{Database} --- does the data look right in Compass/Atlas?
+\end{enumerate}
+
+\begin{diagrambox}[Debugging Checklist Flow]
+\begin{verbatim}
+ Console -> Network tab -> URL -> Method -> Body -> Headers
+   -> Status code -> Response body -> Backend terminal
+   -> Route -> Controller -> Database
+   (first mismatch found = the layer with the bug)
+\end{verbatim}
+\end{diagrambox}
+
+\begin{notebox}[NOTE]
+Console through Headers is frontend/network. Status code and response body
+tell you if the backend ran correctly. Backend terminal onward is
+backend/database. The checklist mainly tells you which half of the stack
+to keep investigating.
+\end{notebox}
+
+\section{Worked Example: "Task Creation Silently Fails"}
+
+Symptom: clicking "Create Task" does nothing --- no new task, no error
+toast.
+
+\begin{enumerate}
+\item \textbf{Console} --- no errors. Click handler isn't throwing.
+\item \textbf{Network tab} --- \texttt{POST /api/tasks} was sent.
+\item \textbf{URL} --- correct: \texttt{/api/tasks}.
+\item \textbf{Method} --- correct: \texttt{POST}.
+\item \textbf{Body} --- payload shows \texttt{\{\}}, despite a title being typed.
+\item \textbf{Headers} --- \texttt{Content-Type} is missing; the browser's default type was sent instead.
+\end{enumerate}
+
+Found it: the axios call omitted the JSON content-type header, so
+\texttt{express.json()} never parsed the payload and \texttt{req.body}
+landed as \texttt{\{\}}. The fix is frontend-side:
+
+\begin{lstlisting}[language=JavaScript]
+// Before -- missing default headers
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL });
+
+// After
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,
+  headers: { "Content-Type": "application/json" },
+  withCredentials: true,
+});
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+The bug was found at step 6, before ever reaching the backend. Jumping
+straight to backend \texttt{console.log}s would have wasted time on
+correct code.
+\end{warnbox}
+
+\begin{tipbox}[TIP]
+Keep the Network tab open with "Preserve log" enabled while reproducing a
+bug --- fastest way to confirm a frontend-side problem before checking the
+backend.
+\end{tipbox}
+
+\whatwhyhow
+{A fixed, ordered checklist -- console, network tab, URL, method, body, headers, status code, response body, backend terminal, route, controller, database -- isolates which layer of the stack a bug lives in.}
+{Without a systematic order, it's easy to debug backend logic that was never reached because the real problem was a malformed or unsent frontend request.}
+{Work the checklist top to bottom and stop at the first point where behavior departs from expectation -- that point is the layer containing the bug.}

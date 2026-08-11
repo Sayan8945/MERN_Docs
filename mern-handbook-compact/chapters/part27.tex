@@ -1,0 +1,185 @@
+\chapter{File Uploads (Multer + Cloudinary)}
+
+\section{The Upload Pipeline}
+
+Uploading an avatar or attachment has three parts: getting raw bytes off the
+request (Multer), storing them on a CDN (Cloudinary), and saving the
+resulting URL on a MongoDB document.
+
+\begin{diagrambox}[Upload Pipeline]
+\begin{verbatim}
+React (FormData) --> POST multipart/form-data
+        |
+   Multer (parses body, exposes req.file)
+        |
+   Cloudinary (uploader.upload) --> secure_url
+        |
+   Save url on User/Task document
+\end{verbatim}
+\end{diagrambox}
+
+\subsection{Why multipart/form-data}
+
+JSON can only carry text. Binary files use \texttt{multipart/form-data}
+encoding, which \texttt{express.json()} cannot parse --- hence a dedicated
+middleware (Multer) for file routes.
+
+\section{Backend: Multer Configuration}
+
+Memory storage avoids an unnecessary disk write since the buffer is
+forwarded straight to Cloudinary.
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/middleware/upload.middleware.js
+const multer = require("multer");
+
+const storage = multer.memoryStorage();
+
+const fileFilter = (req, file, cb) => {
+  const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp"];
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Only JPEG, PNG, or WEBP images are allowed"), false);
+  }
+};
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB max
+});
+
+module.exports = upload;
+\end{lstlisting}
+
+\subsection{Cloudinary Configuration}
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/config/cloudinary.js
+const cloudinary = require("cloudinary").v2;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+module.exports = cloudinary;
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+Cloudinary credentials belong in \texttt{.env}, never committed to source
+control (Chapter~24).
+\end{notebox}
+
+\subsection{Controller: Upload and Save}
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/controllers/user.controller.js
+const cloudinary = require("../config/cloudinary");
+const User = require("../models/User");
+
+const uploadAvatar = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided" });
+    }
+
+    const base64 = req.file.buffer.toString("base64");
+    const dataUri = `data:${req.file.mimetype};base64,${base64}`;
+
+    const result = await cloudinary.uploader.upload(dataUri, {
+      folder: "task-app/avatars",
+      resource_type: "image",
+    });
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { avatar: result.secure_url },
+      { new: true }
+    ).select("-password");
+
+    res.status(200).json({ user });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { uploadAvatar };
+\end{lstlisting}
+
+\subsection{Route Wiring}
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/routes/user.routes.js
+const express = require("express");
+const upload = require("../middleware/upload.middleware");
+const { uploadAvatar } = require("../controllers/user.controller");
+const { protect } = require("../middleware/auth.middleware");
+
+const router = express.Router();
+
+router.post("/me/avatar", protect, upload.single("avatar"), uploadAvatar);
+
+module.exports = router;
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+The field name in \texttt{upload.single("avatar")} must match the
+\texttt{FormData} key exactly, or \texttt{req.file} is silently
+\texttt{undefined}.
+\end{warnbox}
+
+\section{Frontend: Building and Sending FormData}
+
+\begin{lstlisting}[language=JavaScript]
+// frontend/src/components/AvatarUploader.jsx
+import { useState } from "react";
+import api from "../services/api";
+
+function AvatarUploader({ onUploaded }) {
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("avatar", file); // key MUST match upload.single("avatar")
+
+    setUploading(true);
+    try {
+      const { data } = await api.post("/users/me/avatar", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      onUploaded(data.user.avatar);
+    } catch (error) {
+      console.error("Upload failed:", error.response?.data?.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="file"
+        accept="image/png, image/jpeg, image/webp"
+        onChange={(e) => setFile(e.target.files[0])}
+      />
+      <button type="submit" disabled={!file || uploading}>
+        {uploading ? "Uploading..." : "Upload Avatar"}
+      </button>
+    </form>
+  );
+}
+
+export default AvatarUploader;
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+Axios sets the \texttt{multipart/form-data} boundary automatically for a
+\texttt{FormData} body; the explicit header is optional but harmless.
+\end{tipbox}

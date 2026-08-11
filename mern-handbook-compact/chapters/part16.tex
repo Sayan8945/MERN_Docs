@@ -1,0 +1,94 @@
+\chapter{Complete Authentication System (Overview)}
+
+This chapter shows how register, login, logout, and "get current user" fit
+together at a flow level. Password hashing (bcrypt) and JWT mechanics are
+covered in depth in the following chapters.
+
+\section{Register Flow}
+
+\begin{diagrambox}[REGISTER Flow]
+\begin{verbatim}
+RegisterForm -> POST /api/auth/register { name, email, password }
+  -> validate input -> hash password (bcrypt, Ch.17)
+  -> User.create -> generate token (jwt.sign, Ch.18) -> 201 (user + cookie)
+\end{verbatim}
+\end{diagrambox}
+
+\section{Login Flow}
+
+\begin{diagrambox}[LOGIN Flow]
+\begin{verbatim}
+LoginForm -> POST /api/auth/login { email, password }
+  -> User.findOne({email}).select("+password") -> bcrypt.compare (Ch.17)
+  -> jwt.sign({id}, SECRET) -> res.cookie("token", jwt, {httpOnly:true})
+  -> React stores user in context/state
+\end{verbatim}
+\end{diagrambox}
+
+\section{authController.js Skeleton}
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/auth.controller.js
+const authService = require("../services/auth.service");
+
+const register = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+    const { user, token } = await authService.register({ name, email, password });
+    res.cookie("token", token, { httpOnly: true });
+    res.status(201).json({ user });
+  } catch (err) { next(err); }
+};
+
+const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const { user, token } = await authService.login({ email, password });
+    res.cookie("token", token, { httpOnly: true });
+    res.status(200).json({ user });
+  } catch (err) { next(err); }
+};
+
+const logout = async (req, res, next) => {
+  try {
+    res.clearCookie("token"); // Ch.19
+    res.status(200).json({ message: "Logged out" });
+  } catch (err) { next(err); }
+};
+
+const getMe = async (req, res, next) => {
+  try {
+    const user = await authService.getCurrentUser(req.user.id); // req.user set by protect, Ch.19
+    res.status(200).json({ user });
+  } catch (err) { next(err); }
+};
+
+module.exports = { register, login, logout, getMe };
+\end{lstlisting}
+
+\section{Auth Routes}
+
+Same \texttt{router} + \texttt{protect} wiring pattern as \texttt{auth.routes.js} in Chapter 10: \texttt{POST /register}, \texttt{POST /login}, \texttt{POST /logout}, \texttt{GET /me} (protected).
+
+\section{What Comes Next}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textbf{Topic} & \textbf{Covered in} \\
+\midrule
+Password hashing with bcrypt        & Chapter 17 \\
+JWT generation and verification      & Chapter 18 \\
+\texttt{protect} middleware and httpOnly cookies & Chapter 19 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{notebox}[NOTE]
+\texttt{register} and \texttt{login} both end by issuing a signed token in an httpOnly cookie --- the pattern the rest of the auth chapters build on.
+\end{notebox}
+
+\begin{warnbox}[WARNING]
+Never return the password field in any auth response. \texttt{select: false} (Chapter 13) protects against this by default, but always check the shape of \texttt{user} objects sent to the client.
+\end{warnbox}

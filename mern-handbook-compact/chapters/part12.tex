@@ -1,0 +1,63 @@
+\chapter{MongoDB Setup}
+
+\section{Core Concepts}
+
+\begin{itemize}
+  \item \textbf{MongoDB} --- document-oriented NoSQL database; stores flexible JSON-like documents.
+  \item \textbf{MongoDB Atlas} --- MongoDB's managed cloud hosting.
+  \item \textbf{Database} --- logical container for collections (e.g. \texttt{taskmanager}).
+  \item \textbf{Collection} --- group of documents, analogous to a SQL table.
+  \item \textbf{Document} --- a single BSON record, analogous to a row.
+  \item \textbf{ObjectId} --- MongoDB's 12-byte unique id, auto-assigned to \texttt{\_id}.
+  \item \textbf{BSON} --- binary-encoded storage format (adds types like Date and ObjectId).
+\end{itemize}
+
+\begin{diagrambox}[MongoDB Hierarchy]
+\begin{verbatim}
+Server/Cluster -> Database ("taskmanager") -> Collection ("tasks")
+              -> Document ({ _id, title, status }) -> Fields
+\end{verbatim}
+\end{diagrambox}
+
+\section{Connecting with Mongoose}
+
+\whatwhyhow{
+Mongoose is an ODM that sits between Node.js and MongoDB, giving schemas, validation, and query helpers.
+}{
+Raw driver calls are untyped and repetitive. Mongoose lets you define a schema once and get consistent validation everywhere.
+}{
+Create a single connection module (\texttt{config/db.js}) that reads the connection string from env vars and connects once at startup.
+}
+
+\subsection{config/db.js}
+
+\begin{lstlisting}[language=JavaScript]
+const mongoose = require("mongoose");
+
+const connectDB = async () => {
+  try {
+    const conn = await mongoose.connect(process.env.MONGO_URI);
+    console.log(`MongoDB connected: ${conn.connection.host}`);
+  } catch (error) {
+    console.error(`MongoDB connection error: ${error.message}`);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
+\end{lstlisting}
+
+\section{MongoDB Atlas Connection String}
+
+\begin{lstlisting}[language=JavaScript]
+// .env
+MONGO_URI=mongodb+srv://<username>:<password>@cluster0.mongodb.net/taskmanager?retryWrites=true&w=majority
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+Atlas requires whitelisting IPs under Network Access; use your current IP, or \texttt{0.0.0.0/0} temporarily for local testing only.
+\end{notebox}
+
+\begin{warnbox}[WARNING]
+Never commit \texttt{.env} or hardcode credentials. Add \texttt{.env} to \texttt{.gitignore} and provide a \texttt{.env.example} placeholder.
+\end{warnbox}

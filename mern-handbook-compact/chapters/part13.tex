@@ -1,0 +1,77 @@
+\chapter{Mongoose Schemas and Models}
+
+\section{Schema vs Model}
+
+\whatwhyhow{
+A \textbf{schema} is the blueprint for a document's shape and validation rules. A \textbf{model} is the compiled interface Mongoose builds from that schema to query a collection.
+}{
+Separating the two lets you define validation once while getting a full query API (\texttt{find}, \texttt{create}, \texttt{findById}, ...) for free.
+}{
+Call \texttt{new mongoose.Schema(\{...\})} to define fields, then \texttt{mongoose.model("Task", taskSchema)} to compile it (Mongoose pluralizes/lowercases the collection name automatically).
+}
+
+\section{Task Schema}
+
+\begin{lstlisting}[language=JavaScript]
+// models/Task.js
+const mongoose = require("mongoose");
+
+const taskSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: [true, "Title is required"], trim: true },
+    description: { type: String, default: "" },
+    status: { type: String, enum: ["todo", "progress", "completed"], default: "todo" },
+    priority: { type: String, enum: ["low", "medium", "high"], default: "medium" },
+    dueDate: { type: Date },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model("Task", taskSchema);
+\end{lstlisting}
+
+\section{Field Options Explained}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textbf{Option} & \textbf{Meaning} \\
+\midrule
+\texttt{type}      & Data type cast/validated against \\
+\texttt{required}   & Rejects save if missing \\
+\texttt{enum}       & Restricts to fixed allowed values \\
+\texttt{default}    & Value used if not supplied \\
+\texttt{ref}        & Model an ObjectId points to, enables \texttt{.populate()} \\
+\texttt{trim}       & Strips whitespace from Strings \\
+\texttt{timestamps} & Schema option adding \texttt{createdAt}/\texttt{updatedAt} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{User Schema (for later chapters)}
+
+\begin{lstlisting}[language=JavaScript]
+// models/User.js
+const userSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: [true, "Name is required"], trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    password: { type: String, required: true, minlength: 6, select: false },
+    avatar: { type: String, default: "" },
+    role: { type: String, enum: ["user", "admin"], default: "user" },
+  },
+  { timestamps: true }
+);
+
+module.exports = mongoose.model("User", userSchema);
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+\texttt{unique: true} on \texttt{email} creates a DB-level unique index, not just a validation rule.
+\end{notebox}
+
+\begin{tipbox}[TIP]
+\texttt{select: false} on \texttt{password} means queries never return the hash by default; opt in with \texttt{.select("+password")} during login.
+\end{tipbox}

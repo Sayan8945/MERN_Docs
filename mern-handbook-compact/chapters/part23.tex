@@ -1,0 +1,98 @@
+\chapter{Backend Validation}
+
+A React form can disable submit until fields look right -- good UX, but not security. Anyone can call the API directly with Postman or a script, bypassing every input you rendered in JSX.
+
+\begin{warnbox}[WARNING]
+Frontend validation is a convenience for honest users, not a trust boundary. Only backend code enforces a rule -- every endpoint must validate its input as if the frontend didn't exist.
+\end{warnbox}
+
+\section{Frontend vs Backend Validation}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{} & \textbf{Frontend} & \textbf{Backend} \\
+\midrule
+Purpose & Fast feedback, UX & Data integrity, security \\
+Runs where & Browser & Server \\
+Bypassable? & Yes -- devtools, curl & No -- last line before DB \\
+Required? & Nice to have & Mandatory \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Validating with express-validator}
+
+\texttt{express-validator} declares validation rules as middleware, directly on the route.
+
+\begin{lstlisting}[language=JavaScript]
+// validators/taskValidator.js
+import { body, validationResult } from "express-validator";
+
+export const validateTask = [
+  body("title")
+    .trim()
+    .notEmpty().withMessage("Title is required")
+    .isString().withMessage("Title must be a string")
+    .isLength({ min: 3 }).withMessage("Title must be at least 3 characters"),
+
+  body("status")
+    .optional()
+    .isIn(["pending", "in-progress", "completed"])
+    .withMessage("Status must be one of: pending, in-progress, completed"),
+
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({
+        success: false,
+        errors: errors.array().map((e) => ({ field: e.path, message: e.msg })),
+      });
+    }
+    next();
+  },
+];
+\end{lstlisting}
+
+Each \texttt{body(...)} chain attaches errors without throwing; the final function checks \texttt{validationResult(req)} and either short-circuits with 422 or calls \texttt{next()}.
+
+\begin{notebox}[NOTE]
+422 (Unprocessable Entity) is the conventional code for "well-formed but failed validation," distinct from 400 or 401/403.
+\end{notebox}
+
+\section{Wiring It Into the Route}
+
+\texttt{validateTask} is itself an array of middleware, so Express spreads it into the route alongside \texttt{protect}:
+
+\begin{lstlisting}[language=JavaScript]
+// routes/taskRoutes.js
+import { protect } from "../middleware/authMiddleware.js";
+import { validateTask } from "../validators/taskValidator.js";
+import { createTask } from "../controllers/taskController.js";
+
+router.post("/tasks", protect, validateTask, createTask);
+\end{lstlisting}
+
+By the time \texttt{createTask} runs, \texttt{req.body.title} is guaranteed present and \texttt{req.body.status} (if any) is a valid enum value.
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/taskController.js
+export const createTask = async (req, res, next) => {
+  try {
+    const { title, status } = req.body; // already validated
+    const task = await Task.create({ title, status, user: req.user._id });
+    res.status(201).json({ success: true, data: task });
+  } catch (err) {
+    next(err);
+  }
+};
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+Duplicating the enum rule in both validator and schema is fine -- the validator rejects bad input before a DB round trip with field-level messages, rather than relying solely on a Mongoose error afterward.
+\end{tipbox}
+
+\whatwhyhow
+{Middleware-based request validation (using express-validator) that checks incoming data shape, types, and allowed values before a controller touches it.}
+{Frontend checks can always be bypassed by anyone calling the API directly, so the backend is the only place invalid or malicious data can reliably be rejected before it reaches the database.}
+{Chain validators like \texttt{body("title").notEmpty()} into an array with a final \texttt{validationResult} check, and insert that array into the route: \texttt{router.post("/tasks", protect, validateTask, createTask)}, returning 422 with field-level errors on failure.}

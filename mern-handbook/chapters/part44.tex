@@ -1,0 +1,140 @@
+\chapter{Deployment}
+
+\begin{notebox}[NOTE]
+This chapter covers the concepts and configuration values a production
+MERN deployment needs, regardless of hosting provider. It does not cover
+Git/GitHub workflow, provider-specific CLI push mechanics, or account
+sign-up steps --- those vary by provider and are outside this handbook's
+scope.
+\end{notebox}
+
+\section{Production Architecture}
+
+\begin{diagrambox}[Production Request Path]
+\begin{verbatim}
+Internet
+   |  HTTPS
+   v
+React Frontend (static hosting, e.g. CDN)
+   |  HTTPS API calls (VITE_API_URL)
+   v
+Express Backend (Node hosting)
+   |  MongoDB driver (TLS connection string)
+   v
+MongoDB Atlas (managed cluster)
+\end{verbatim}
+\end{diagrambox}
+
+Two independent deployments, connected only by URLs and environment
+variables --- the frontend is a static build artifact, the backend is a
+long-running Node process, and the database is a separate managed service.
+
+\section{Frontend: Build for Production}
+
+\begin{lstlisting}
+npm run build
+# produces a dist/ folder: static HTML/CSS/JS, ready for any static host
+\end{lstlisting}
+
+The static host serves \texttt{dist/} directly --- no Node process runs
+for the frontend in production. Set \texttt{VITE\_API\_URL} to the
+deployed backend's URL \emph{before} running \texttt{build}, since Vite
+inlines env variables at build time, not at runtime.
+
+\begin{warnbox}[WARNING]
+If \texttt{VITE\_API\_URL} still points at \texttt{localhost} when you
+run \texttt{build}, every API call in production will try to reach the
+visitor's own machine. Rebuild after changing the env value --- editing
+\texttt{.env} alone does not update an already-built \texttt{dist/}.
+\end{warnbox}
+
+\section{Backend: Start Command}
+
+\begin{lstlisting}
+npm start
+# package.json: "start": "node src/server.js"
+\end{lstlisting}
+
+Production runs \texttt{node}, never \texttt{nodemon} --- nodemon exists
+purely for local file-watching and adds unnecessary overhead to a
+production process. The hosting platform restarts the process on crash;
+that is the platform's job, not nodemon's.
+
+\section{Environment Variables}
+
+Configure these on the hosting platform's dashboard/config system ---
+never commit \texttt{.env} to the repository.
+
+\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{4.2cm}X@{}}
+\toprule
+Variable & Production value \\
+\midrule
+\texttt{MONGO\_URI} & Atlas connection string for the production cluster \\
+\texttt{JWT\_SECRET} & Long random string, different from any dev secret \\
+\texttt{NODE\_ENV} & \texttt{production} \\
+\texttt{FRONTEND\_URL} & The deployed frontend's exact domain (for CORS) \\
+\texttt{GOOGLE\_CLIENT\_ID/SECRET} & Production OAuth credentials with the
+production redirect URI registered \\
+\texttt{CLOUDINARY\_*} & Cloudinary account keys \\
+\bottomrule
+\end{tabularx}
+
+\section{Updating CORS for Production}
+
+\begin{lstlisting}[language=JavaScript]
+app.use(cors({
+  origin: process.env.FRONTEND_URL, // the deployed frontend's real domain
+  credentials: true,
+}));
+\end{lstlisting}
+
+A CORS origin of \texttt{localhost:5173} works locally but must be
+replaced with the deployed frontend's actual domain, or every
+cookie-based request will be blocked in production (Chapter 26).
+
+\section{MongoDB Atlas Network Access}
+
+Atlas rejects connections from IPs not on its allowlist. For a backend
+hosted on a platform with dynamic/unknown outbound IPs, allow
+\texttt{0.0.0.0/0} (any IP) --- acceptable because the connection still
+requires valid database credentials. If the platform provides static
+outbound IPs, allowlist those specific addresses instead for a tighter
+boundary.
+
+\section{HTTPS and Custom Domains}
+
+Most hosting platforms provision HTTPS automatically (managed
+certificates) for both the frontend and backend as soon as a domain is
+attached --- no manual certificate handling is typically required. Once
+HTTPS is active, set cookie options to \texttt{secure: true} and
+\texttt{sameSite: 'none'} for cross-domain cookie delivery (Chapter 19).
+A custom domain is simply a DNS record pointed at the platform, applied
+to either the frontend, backend, or both independently.
+
+\section{Debugging in Production}
+
+Every hosting platform exposes a logs view for the running backend
+process --- this is the production equivalent of the terminal output you
+see locally. When something fails only in production:
+
+\begin{itemize}
+\item Reproduce the request and immediately check the platform's log
+viewer for the stack trace.
+\item Confirm the failing behavior isn't simply a missing/incorrect
+environment variable (the most common production-only bug).
+\item Check the browser console and Network tab on the deployed frontend
+exactly as you would locally.
+\end{itemize}
+
+\whatwhyhow
+{Two independently deployed pieces --- a static frontend build and a
+long-running Node backend process --- connected through environment
+variables (\texttt{VITE\_API\_URL}, \texttt{FRONTEND\_URL},
+\texttt{MONGO\_URI}) and a managed MongoDB Atlas cluster.}
+{Separating concerns lets the frontend scale as static assets on a CDN
+while the backend scales as a process, and keeps secrets out of the
+repository entirely.}
+{Build the frontend with the production API URL baked in, start the
+backend with \texttt{npm start} (not nodemon), configure CORS/cookies for
+the real domains, and set every secret through the platform's environment
+variable system.}

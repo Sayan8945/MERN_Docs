@@ -1,0 +1,126 @@
+\chapter{Mongoose Schemas and Models}
+
+\section{Schema vs Model}
+
+\whatwhyhow{
+A \textbf{schema} is the blueprint describing a document's shape, field types, and validation rules. A \textbf{model} is the compiled, usable interface Mongoose builds from that schema to actually query a collection.
+}{
+Separating the two lets you define validation and structure once (schema) while getting a rich query API (model) for free: \texttt{find}, \texttt{create}, \texttt{findById}, \texttt{updateOne}, and so on.
+}{
+Call \texttt{new mongoose.Schema(\{...\})} to define fields, then \texttt{mongoose.model("Task", taskSchema)} to compile it into a model bound to the \texttt{tasks} collection (Mongoose pluralizes and lowercases the name automatically).
+}
+
+\section{Task Schema}
+
+\begin{lstlisting}[language=JavaScript]
+// models/Task.js
+const mongoose = require("mongoose");
+
+const taskSchema = new mongoose.Schema(
+  {
+    title: {
+      type: String,
+      required: [true, "Title is required"],
+      trim: true,
+    },
+    description: {
+      type: String,
+      default: "",
+    },
+    status: {
+      type: String,
+      enum: ["todo", "progress", "completed"],
+      default: "todo",
+    },
+    priority: {
+      type: String,
+      enum: ["low", "medium", "high"],
+      default: "medium",
+    },
+    dueDate: {
+      type: Date,
+    },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+  },
+  { timestamps: true }
+);
+
+const Task = mongoose.model("Task", taskSchema);
+
+module.exports = Task;
+\end{lstlisting}
+
+\section{Field Options Explained}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textbf{Option} & \textbf{Meaning} \\
+\midrule
+\texttt{type}     & The data type Mongoose casts and validates against (\texttt{String}, \texttt{Number}, \texttt{Date}, \texttt{Boolean}, \texttt{ObjectId}, ...). \\
+\texttt{required}  & Rejects document creation/save if the field is missing; can pair with a custom error message. \\
+\texttt{enum}      & Restricts a String/Number field to a fixed set of allowed values. \\
+\texttt{default}   & Value used when the field is not supplied at creation time. \\
+\texttt{ref}       & Names the model that an \texttt{ObjectId} field points to, enabling \texttt{.populate()}. \\
+\texttt{trim}      & Strips leading/trailing whitespace from String values. \\
+\texttt{timestamps} & Schema option (not a field option) that auto-adds and maintains \texttt{createdAt}/\texttt{updatedAt}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{User Schema (for later chapters)}
+
+\begin{lstlisting}[language=JavaScript]
+// models/User.js
+const mongoose = require("mongoose");
+
+const userSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: [true, "Name is required"],
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: [true, "Email is required"],
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+    password: {
+      type: String,
+      required: [true, "Password is required"],
+      minlength: 6,
+      select: false, // excluded from query results by default
+    },
+    avatar: {
+      type: String,
+      default: "",
+    },
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
+  },
+  { timestamps: true }
+);
+
+const User = mongoose.model("User", userSchema);
+
+module.exports = User;
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+\texttt{unique: true} on \texttt{email} creates a unique index at the database level; it is not a validation rule by itself and needs \texttt{unique} indexes to actually be built (Mongoose does this automatically on model compilation in development).
+\end{notebox}
+
+\begin{tipbox}[TIP]
+\texttt{select: false} on \texttt{password} means \texttt{User.find()} never returns the password hash by default. You must explicitly opt in with \texttt{.select("+password")} when you need it, such as during login.
+\end{tipbox}

@@ -1,0 +1,139 @@
+\chapter{CORS --- Connecting Different Origins}
+
+\section{Why the Browser Blocks the Request}
+
+During local development the React app runs on
+\texttt{http://localhost:5173} (Vite's default port) and the Express API runs
+on \texttt{http://localhost:5000}. Even though both are ``localhost'', they
+are two different \textbf{origins} --- an origin is the triple
+\texttt{scheme + host + port}, and any difference in any one of those three
+makes it a cross-origin request. Browsers enforce the
+\textbf{Same-Origin Policy}: JavaScript running on one origin cannot read
+responses from a different origin unless that origin explicitly says it is
+allowed to. This is a browser-side security rule, not a server-side one ---
+tools like Postman or \texttt{curl} never hit this wall because they aren't
+bound by same-origin restrictions.
+
+\textbf{CORS (Cross-Origin Resource Sharing)} is the mechanism the server uses
+to opt certain origins back in, by sending back headers like
+\texttt{Access-Control-Allow-Origin}.
+
+\subsection{Preflight Requests}
+
+For ``non-simple'' requests --- anything using \texttt{PUT}, \texttt{PATCH},
+\texttt{DELETE}, a JSON body, or custom headers like
+\texttt{Authorization} --- the browser first sends an automatic
+\texttt{OPTIONS} request called a \textbf{preflight}. It asks the server
+``if I were to send this real request, would you allow it?'' before sending
+the actual request. The server must respond to \texttt{OPTIONS} with the
+appropriate \texttt{Access-Control-Allow-*} headers, or the browser never
+sends the real request at all.
+
+\begin{diagrambox}[Preflight Flow]
+\begin{verbatim}
+Browser (localhost:5173)              Server (localhost:5000)
+        |                                      |
+        |--- OPTIONS /api/tasks -------------->|  (preflight)
+        |    Origin: localhost:5173            |
+        |    Access-Control-Request-Method: PUT|
+        |                                      |
+        |<-- Access-Control-Allow-Origin ------|
+        |<-- Access-Control-Allow-Methods -----|
+        |<-- Access-Control-Allow-Credentials -|
+        |                                      |
+        |--- PUT /api/tasks/123 -------------->|  (actual request,
+        |                                      |   only sent if
+        |<-- 200 OK ---------------------------|   preflight passed)
+\end{verbatim}
+\end{diagrambox}
+
+\section{Configuring CORS in Express}
+
+\begin{lstlisting}[language=JavaScript]
+const cors = require("cors");
+
+app.use(
+  cors({
+    origin: "http://localhost:5173", // exact frontend origin, not "*"
+    credentials: true,               // allow cookies / Authorization header
+  })
+);
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+\texttt{origin} cannot be the wildcard \texttt{"*"} when
+\texttt{credentials: true}. The CORS spec forbids combining a wildcard origin
+with credentialed requests (cookies, HTTP auth) because it would let any
+website read a user's authenticated response. You must list an exact origin
+(or a function that validates against an allow-list of exact origins).
+\end{warnbox}
+
+\begin{lstlisting}[language=JavaScript]
+// Supporting multiple known origins (e.g. staging + production)
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://taskapp.example.com",
+];
+
+app.use(
+  cors({
+    origin: (incomingOrigin, callback) => {
+      if (!incomingOrigin || allowedOrigins.includes(incomingOrigin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+\end{lstlisting}
+
+\section{Common CORS Errors and Fixes}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{X X}
+\toprule
+\textbf{Error in browser console} & \textbf{Fix} \\
+\midrule
+``No \texttt{Access-Control-Allow-Origin} header is present on the requested
+resource'' &
+The server never sent CORS headers at all. Add \texttt{app.use(cors(\{...\}))}
+before your routes, and make sure it runs for every request (including
+\texttt{OPTIONS}). \\
+\addlinespace
+``The value of the \texttt{Access-Control-Allow-Origin} header in the
+response must not be the wildcard \texttt{*} when the request's credentials
+mode is \texttt{include}'' &
+Replace \texttt{origin: "*"} with the exact frontend origin string, and keep
+\texttt{credentials: true} only if you actually need cookies/auth headers
+sent cross-origin. \\
+\addlinespace
+``The request's credentials mode is \texttt{include}, but the
+\texttt{Access-Control-Allow-Credentials} header ... is not \texttt{true}'' &
+Add \texttt{credentials: true} inside the \texttt{cors()} config on the
+server \emph{and} set \texttt{withCredentials: true} (axios) or
+\texttt{credentials: "include"} (fetch) on the frontend request. \\
+\addlinespace
+``Response to preflight request doesn't pass access control check: It does
+not have HTTP ok status'' &
+Something (an auth middleware, a rate limiter) is intercepting the
+\texttt{OPTIONS} request before \texttt{cors()} can respond to it. Register
+\texttt{cors()} as the very first middleware, ahead of auth checks. \\
+\addlinespace
+``Method \texttt{PATCH} is not allowed by \texttt{Access-Control-Allow-Methods}
+in preflight response'' &
+Pass an explicit \texttt{methods} array to \texttt{cors()}, e.g.\
+\texttt{methods: ["GET","POST","PUT","PATCH","DELETE"]}, if you rely on
+methods beyond the library's defaults. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{tipbox}[TIP]
+In production, read the allowed origin from an environment variable
+(\texttt{process.env.CLIENT\_URL}) instead of hardcoding
+\texttt{localhost:5173}, so the same code works across development,
+staging, and production without edits.
+\end{tipbox}

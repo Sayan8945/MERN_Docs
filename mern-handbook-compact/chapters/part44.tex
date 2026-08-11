@@ -1,0 +1,97 @@
+\chapter{Deployment}
+
+\begin{notebox}[NOTE]
+Concepts and config values a production MERN deployment needs, provider-agnostic. Git workflow and provider CLI/sign-up steps are out of scope.
+\end{notebox}
+
+\section{Production Architecture}
+
+\begin{diagrambox}[Production Request Path]
+\begin{verbatim}
+Internet
+   |  HTTPS
+   v
+React Frontend (static hosting, e.g. CDN)
+   |  HTTPS API calls (VITE_API_URL)
+   v
+Express Backend (Node hosting)
+   |  MongoDB driver (TLS connection string)
+   v
+MongoDB Atlas (managed cluster)
+\end{verbatim}
+\end{diagrambox}
+
+Two independent deployments connected only by URLs and env vars: frontend is a static build artifact, backend is a long-running Node process, database is a separate managed service.
+
+\section{Frontend: Build for Production}
+
+\begin{lstlisting}
+npm run build
+# produces a dist/ folder: static HTML/CSS/JS, ready for any static host
+\end{lstlisting}
+
+Static host serves \texttt{dist/} directly --- no Node process for the frontend. Set \texttt{VITE\_API\_URL} to the backend's URL \emph{before} running \texttt{build}; Vite inlines env vars at build time, not runtime.
+
+\begin{warnbox}[WARNING]
+If \texttt{VITE\_API\_URL} still points at \texttt{localhost} at build time, every production API call targets the visitor's own machine. Rebuild after changing the value --- editing \texttt{.env} alone won't update an existing \texttt{dist/}.
+\end{warnbox}
+
+\section{Backend: Start Command}
+
+\begin{lstlisting}
+npm start
+# package.json: "start": "node src/server.js"
+\end{lstlisting}
+
+Production runs \texttt{node}, never \texttt{nodemon} --- nodemon is for local file-watching only. Restarting on crash is the hosting platform's job.
+
+\section{Environment Variables}
+
+Configure these on the hosting platform's dashboard --- never commit \texttt{.env}.
+
+\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{4.2cm}X@{}}
+\toprule
+Variable & Production value \\
+\midrule
+\texttt{MONGO\_URI} & Atlas connection string for the production cluster \\
+\texttt{JWT\_SECRET} & Long random string, distinct from dev secret \\
+\texttt{NODE\_ENV} & \texttt{production} \\
+\texttt{FRONTEND\_URL} & Deployed frontend's exact domain (for CORS) \\
+\texttt{GOOGLE\_CLIENT\_ID/SECRET} & Production OAuth creds with redirect URI registered \\
+\texttt{CLOUDINARY\_*} & Cloudinary account keys \\
+\bottomrule
+\end{tabularx}
+
+\section{Updating CORS for Production}
+
+\begin{lstlisting}[language=JavaScript]
+app.use(cors({
+  origin: process.env.FRONTEND_URL, // the deployed frontend's real domain
+  credentials: true,
+}));
+\end{lstlisting}
+
+A \texttt{localhost:5173} origin works locally but must be replaced with the deployed frontend's domain, or cookie-based requests are blocked in production (Chapter 26).
+
+\section{MongoDB Atlas Network Access}
+
+Atlas rejects IPs not on its allowlist. For dynamic outbound IPs, allow \texttt{0.0.0.0/0} (still gated by DB credentials). If the platform gives static IPs, allowlist those instead.
+
+\section{HTTPS and Custom Domains}
+
+Most platforms provision HTTPS automatically once a domain is attached. Once active, set cookies to \texttt{secure: true} and \texttt{sameSite: 'none'} for cross-domain delivery (Chapter 19). A custom domain is just a DNS record pointed at the platform.
+
+\section{Debugging in Production}
+
+Every platform exposes a logs view --- the production equivalent of local terminal output.
+
+\begin{itemize}
+\item Reproduce the request, check the platform's log viewer for the stack trace.
+\item Rule out a missing/incorrect env variable (the most common production-only bug).
+\item Check the deployed frontend's console and Network tab as you would locally.
+\end{itemize}
+
+\whatwhyhow
+{Two independently deployed pieces --- static frontend build and long-running Node backend --- connected via env vars (\texttt{VITE\_API\_URL}, \texttt{FRONTEND\_URL}, \texttt{MONGO\_URI}) and a managed Atlas cluster.}
+{Separating concerns lets the frontend scale as CDN static assets while the backend scales as a process, and keeps secrets out of the repo.}
+{Build the frontend with the production API URL baked in, start the backend with \texttt{npm start}, configure CORS/cookies for real domains, set secrets via the platform's env system.}

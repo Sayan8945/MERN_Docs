@@ -1,0 +1,119 @@
+\chapter{Routing with React Router}
+
+\section{Core Building Blocks}
+
+\begin{lstlisting}[language=JavaScript]
+// App.jsx
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import MainLayout from "./layouts/MainLayout";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import TaskDetails from "./pages/TaskDetails";
+import Profile from "./pages/Profile";
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
+        <Route
+          element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/tasks/:id" element={<TaskDetails />} />
+          <Route path="/profile" element={<Profile />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}
+\end{lstlisting}
+
+\begin{itemize}
+  \item \texttt{BrowserRouter} -- enables client-side routing via History API.
+  \item \texttt{Routes}/\texttt{Route} -- path-to-component mapping.
+  \item \texttt{Link}/\texttt{NavLink} -- render \texttt{<a>} without reload; \texttt{NavLink} adds an active class.
+  \item \texttt{useNavigate} -- programmatic navigation.
+  \item \texttt{useParams} -- reads dynamic URL segments like \texttt{:id}.
+  \item A path-less nested \texttt{Route} under \texttt{<Outlet/>} creates a \textbf{layout route}.
+\end{itemize}
+
+\begin{lstlisting}[language=JavaScript]
+// layouts/MainLayout.jsx
+import { Outlet } from "react-router-dom";
+import Navbar from "../components/Navbar";
+import Sidebar from "../components/Sidebar";
+
+export default function MainLayout() {
+  return (
+    <div className="app-shell">
+      <Navbar />
+      <div className="app-body">
+        <Sidebar />
+        <main><Outlet /></main>
+      </div>
+    </div>
+  );
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// pages/TaskDetails.jsx
+import { useParams, useNavigate } from "react-router-dom";
+
+export default function TaskDetails() {
+  const { id } = useParams();      // id from /tasks/:id
+  const navigate = useNavigate();
+
+  const handleBack = () => navigate("/dashboard");
+  // ...fetch task by id, render details
+}
+\end{lstlisting}
+
+\section{Protected Routes}
+
+Protected routes stop unauthenticated users from rendering a page that needs
+a logged-in user before the page component mounts.
+
+\begin{diagrambox}[Protected Route Flow]
+\begin{verbatim}
+ /dashboard requested -> <ProtectedRoute> renders
+   -> useAuth(): logged in?
+        NO  -> <Navigate to="/login"/>
+        YES -> render children (<MainLayout/> -> <Outlet/>)
+\end{verbatim}
+\end{diagrambox}
+
+\begin{lstlisting}[language=JavaScript]
+// components/ProtectedRoute.jsx
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
+
+export default function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) return <p>Checking session...</p>;
+  if (!user) return <Navigate to="/login" replace />;
+
+  return children;
+}
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+\texttt{replace} keeps the login page from being pushed onto history again,
+so back button doesn't bounce between \texttt{/login} and the redirecting page.
+\end{notebox}
+
+\begin{warnbox}[WARNING]
+A client-side \texttt{ProtectedRoute} only hides UI, not a security boundary --
+Express must independently verify the JWT via its \texttt{protect} middleware
+(Chapter 2) on every protected endpoint.
+\end{warnbox}

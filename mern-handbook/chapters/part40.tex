@@ -1,0 +1,122 @@
+\chapter{Debugging MERN Applications}
+
+A MERN bug can live in the frontend, the network layer, the backend route,
+the controller logic, or the database itself. Guessing at random wastes
+time; checking a fixed sequence of points, in order, tells you exactly
+which layer the problem is in before you write a single fix.
+
+\section{The Core Principle}
+
+Each layer in the request/response path can only pass along what the layer
+before it produced. If the request body arriving at the controller is
+empty, no amount of controller logic will fix it --- the bug is upstream,
+likely in how the frontend built the request. Working through the
+checklist in order means you stop at the first point where reality departs
+from what you expect, instead of debugging correct code because the actual
+bug is somewhere else entirely.
+
+\section{The Debugging Checklist}
+
+\begin{enumerate}
+\item \textbf{Browser Console} --- any thrown JS errors or warnings?
+\item \textbf{Network tab} --- was the request even sent?
+\item \textbf{Request URL} --- is it the exact endpoint you think it is?
+\item \textbf{HTTP method} --- \texttt{GET}/\texttt{POST}/\texttt{PUT}/\texttt{DELETE} as expected?
+\item \textbf{Request body} --- does it contain the data you expect, in the right shape?
+\item \textbf{Headers} --- is \texttt{Content-Type} (and the auth cookie) actually present?
+\item \textbf{Status code} --- 2xx, or does it reveal a 4xx/5xx?
+\item \textbf{Response body} --- what did the server actually say?
+\item \textbf{Backend terminal} --- any stack trace or logged error?
+\item \textbf{Route} --- is this request even reaching the route you expect?
+\item \textbf{Controller} --- is the logic doing what you think with the input it received?
+\item \textbf{Database} --- does the data actually look right in Compass/Atlas?
+\end{enumerate}
+
+\begin{diagrambox}[Debugging Checklist Flow]
+\begin{verbatim}
+ Browser Console
+       |
+       v
+ Network tab (was request sent?)
+       |
+       v
+ Request URL --> HTTP method --> Request body --> Headers
+       |
+       v
+ Status code --> Response body
+       |
+       v
+ Backend terminal (server-side errors/logs)
+       |
+       v
+ Route --> Controller --> Database
+       |
+       v
+ First mismatch found = the layer with the bug
+\end{verbatim}
+\end{diagrambox}
+
+\begin{notebox}[NOTE]
+The first six items (Console through Headers) are all frontend/network
+layer. Status code and response body tell you whether the backend even ran
+correctly. Everything from backend terminal onward is backend/database
+layer. Most of the checklist's value is in quickly telling you which
+\emph{half} of the stack to keep investigating.
+\end{notebox}
+
+\section{Worked Example: "Task Creation Silently Fails"}
+
+The symptom: clicking "Create Task" does nothing visible --- no new task
+appears, no error toast, nothing.
+
+\begin{enumerate}
+\item \textbf{Browser Console} --- no errors logged. Rules out a JS
+exception in the click handler.
+\item \textbf{Network tab} --- the \texttt{POST /api/tasks} request is
+there. It was sent. Rules out the button not firing at all.
+\item \textbf{Request URL} --- correct: \texttt{/api/tasks}.
+\item \textbf{HTTP method} --- correct: \texttt{POST}.
+\item \textbf{Request body} --- opening the request payload in DevTools
+shows \texttt{\{\}} --- an empty object, even though the form clearly had a
+title typed into it.
+\item \textbf{Headers} --- checking the request headers shows
+\texttt{Content-Type} is missing entirely; the request was sent with the
+default browser content type instead of \texttt{application/json}.
+\end{enumerate}
+
+Found it: the axios call omitted the JSON content-type header, so Express's
+\texttt{express.json()} body parser never parsed the payload, and
+\texttt{req.body} landed in the controller as \texttt{\{\}}. The fix is on
+the frontend, not the backend:
+
+\begin{lstlisting}[language=JavaScript]
+// Before -- api client missing default headers
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL });
+
+// After -- Content-Type set for every request
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,
+  headers: { "Content-Type": "application/json" },
+  withCredentials: true,
+});
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+Notice the bug was found at step 6 (Headers), well before reaching the
+backend terminal, route, controller, or database. Jumping straight to
+"add console.logs in the controller" would have wasted time debugging
+correct backend code, since \texttt{req.body} being empty was a symptom of
+a frontend request problem, not a controller bug.
+\end{warnbox}
+
+\begin{tipbox}[TIP]
+Keep the browser's Network tab open with "Preserve log" enabled while
+reproducing a bug. It's the single fastest way to confirm whether a
+problem is frontend-side (request never sent, wrong URL/method/body) before
+you even look at the backend.
+\end{tipbox}
+
+\whatwhyhow
+{A fixed, ordered checklist -- console, network tab, URL, method, body, headers, status code, response body, backend terminal, route, controller, database -- isolates which layer of the stack a bug lives in.}
+{Without a systematic order, it's easy to debug backend logic that was never actually reached because the real problem was a malformed or unsent frontend request.}
+{Work the checklist top to bottom and stop at the first point where behavior departs from expectation -- that point is the layer containing the bug.}

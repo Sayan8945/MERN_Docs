@@ -1,0 +1,141 @@
+\chapter{Express Routing}
+
+\section{HTTP Methods and Their Purpose}
+
+\begin{itemize}
+  \item \textbf{GET} --- retrieve a resource or collection; no body, safe and idempotent.
+  \item \textbf{POST} --- create a new resource; carries a request body.
+  \item \textbf{PUT} --- replace a resource entirely (send the full object).
+  \item \textbf{PATCH} --- partially update a resource (send only changed fields).
+  \item \textbf{DELETE} --- remove a resource.
+\end{itemize}
+
+\begin{notebox}[NOTE]
+In practice many REST APIs use \texttt{PUT} where \texttt{PATCH} would be more semantically correct. This handbook uses \texttt{PUT} for task updates since the frontend form always sends the full task object.
+\end{notebox}
+
+\section{Route Files with express.Router()}
+
+\whatwhyhow{
+\texttt{express.Router()} creates a mini, mountable Express application scoped to one resource.
+}{
+Without it, every route would live in one giant \texttt{app.js}, making the file unmanageable as the API grows.
+}{
+Define routes in \texttt{routes/*.routes.js}, export the router, and mount it in \texttt{app.js} with \texttt{app.use("/api/tasks", taskRoutes)}.
+}
+
+\subsection{routes/auth.routes.js}
+
+\begin{lstlisting}[language=JavaScript]
+const express = require("express");
+const { register, login, logout, getMe } = require("../controllers/auth.controller");
+const { protect } = require("../middleware/auth.middleware");
+
+const router = express.Router();
+
+router.post("/register", register);
+router.post("/login", login);
+router.post("/logout", logout);
+router.get("/me", protect, getMe);
+
+module.exports = router;
+\end{lstlisting}
+
+\subsection{routes/user.routes.js}
+
+\begin{lstlisting}[language=JavaScript]
+const express = require("express");
+const { getUsers, getUserById, updateUser } = require("../controllers/user.controller");
+const { protect } = require("../middleware/auth.middleware");
+
+const router = express.Router();
+
+router.get("/", protect, getUsers);
+router.get("/:id", protect, getUserById);
+router.put("/:id", protect, updateUser);
+
+module.exports = router;
+\end{lstlisting}
+
+\subsection{routes/task.routes.js}
+
+\begin{lstlisting}[language=JavaScript]
+const express = require("express");
+const {
+  createTask,
+  getTasks,
+  getTaskById,
+  updateTask,
+  deleteTask,
+} = require("../controllers/task.controller");
+const { protect } = require("../middleware/auth.middleware");
+
+const router = express.Router();
+
+router.use(protect); // every task route requires authentication
+
+router.post("/", createTask);
+router.get("/", getTasks);
+router.get("/:id", getTaskById);
+router.put("/:id", updateTask);
+router.delete("/:id", deleteTask);
+
+module.exports = router;
+\end{lstlisting}
+
+\subsection{routes/profile.routes.js}
+
+\begin{lstlisting}[language=JavaScript]
+const express = require("express");
+const { getProfile, updateProfile } = require("../controllers/profile.controller");
+const { protect } = require("../middleware/auth.middleware");
+
+const router = express.Router();
+
+router.get("/", protect, getProfile);
+router.put("/", protect, updateProfile);
+
+module.exports = router;
+\end{lstlisting}
+
+\section{Route Params vs Query Params vs Body}
+
+\begin{itemize}
+  \item \textbf{Route params} --- part of the URL path, used to identify a specific resource. \texttt{/tasks/:id} $\rightarrow$ \texttt{req.params.id}.
+  \item \textbf{Query params} --- key/value pairs after \texttt{?}, used for filtering, pagination, sorting. \texttt{/tasks?page=1\&limit=10} $\rightarrow$ \texttt{req.query.page}, \texttt{req.query.limit}.
+  \item \textbf{Request body} --- JSON payload sent with POST/PUT/PATCH, used to create or update data. \texttt{req.body} is only populated because \texttt{express.json()} middleware ran first.
+\end{itemize}
+
+\begin{lstlisting}[language=JavaScript]
+// GET /api/tasks?page=2&limit=10&status=todo
+const getTasks = async (req, res) => {
+  const { page = 1, limit = 10, status } = req.query;
+  // ...build filter and pagination from query params
+};
+
+// GET /api/tasks/:id
+const getTaskById = async (req, res) => {
+  const { id } = req.params; // route param identifies the exact task
+};
+\end{lstlisting}
+
+\section{Task Routes Reference}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\textbf{Method} & \textbf{Path} & \textbf{Purpose} \\
+\midrule
+POST   & /api/tasks      & Create a new task for the logged-in user \\
+GET    & /api/tasks      & List tasks (supports pagination \& filtering via query params) \\
+GET    & /api/tasks/:id  & Fetch a single task by its ObjectId \\
+PUT    & /api/tasks/:id  & Replace/update an existing task \\
+DELETE & /api/tasks/:id  & Remove a task \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{tipbox}[TIP]
+Keep route files thin. They should only wire paths to controller functions and attach middleware — no business logic, no direct database calls.
+\end{tipbox}

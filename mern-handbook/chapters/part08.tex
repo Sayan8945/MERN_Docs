@@ -1,0 +1,207 @@
+\chapter{Establishing API Communication}
+
+This chapter connects everything from Chapters 1--7 into one fully working
+round trip: a React page calling \texttt{api.get("/tasks")} and rendering
+whatever MongoDB returns. Read this chapter slowly -- every CRUD feature for
+the rest of the book is a variation of this exact pattern.
+
+\section{The Complete Cycle, Labeled}
+
+\begin{diagrambox}[GET /api/tasks -- Full Cycle]
+\begin{verbatim}
+ React: Dashboard.jsx
+   useEffect(() => { taskService.getTasks() }, [])
+        |
+        v
+ services/taskService.js
+   api.get("/tasks")
+        |
+        v
+ Axios instance (src/api/axios.js)
+   + baseURL:  http://localhost:5000/api
+   + withCredentials: true (sends JWT cookie)
+        |
+        v
+ HTTP Request  ------------------------------>
+   GET /api/tasks
+   Headers: Cookie: token=<jwt>; Content-Type: application/json
+   Body: (none - GET has no body)
+        |
+        v
+ Express app.js
+   app.use("/api/tasks", taskRoutes)
+        |
+        v
+ routes/taskRoutes.js
+   router.get("/", protect, getTasks)
+        |
+        v
+ middleware/auth.js  (protect)
+   verifies JWT from cookie -> attaches req.user
+        |
+        v
+ controllers/taskController.js
+   getTasks(req, res)
+        |
+        v
+ Mongoose
+   Task.find({ user: req.user._id })
+        |
+        v
+ MongoDB
+   scans "tasks" collection, returns matching documents
+        |
+        v
+ controllers/taskController.js
+   res.status(200).json({ success: true, data: tasks })
+        |
+        v
+ HTTP Response  <------------------------------
+   Status: 200 OK
+   Body: { "success": true, "data": [ {...}, {...} ] }
+        |
+        v
+ Axios instance
+   resolves promise with response.data
+        |
+        v
+ services/taskService.js
+   returns res.data.data  (the array of tasks)
+        |
+        v
+ React: Dashboard.jsx
+   setTasks(data) -> re-render -> TaskList shows TaskCards
+\end{verbatim}
+\end{diagrambox}
+
+\section{The Frontend Side}
+
+\begin{lstlisting}[language=JavaScript]
+// src/services/taskService.js
+import api from "../api/axios";
+
+export async function getTasks() {
+  try {
+    const res = await api.get("/tasks");
+    return res.data.data;
+  } catch (err) {
+    throw new Error(err.response?.data?.message || "Failed to load tasks");
+  }
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// src/pages/Dashboard.jsx
+import { useEffect, useState } from "react";
+import { getTasks } from "../services/taskService";
+import TaskList from "../components/TaskList";
+
+export default function Dashboard() {
+  const [tasks, setTasks] = useState([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getTasks()
+      .then(setTasks)
+      .catch((err) => setError(err.message));
+  }, []);
+
+  if (error) return <p className="error">{error}</p>;
+  return <TaskList tasks={tasks} />;
+}
+\end{lstlisting}
+
+\section{The Backend Side}
+
+\begin{lstlisting}[language=JavaScript]
+// routes/taskRoutes.js
+const express = require("express");
+const router = express.Router();
+const { protect } = require("../middleware/auth");
+const { getTasks, createTask } = require("../controllers/taskController");
+
+router.get("/", protect, getTasks);
+router.post("/", protect, createTask);
+
+module.exports = router;
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/taskController.js
+const Task = require("../models/Task");
+
+exports.getTasks = async (req, res) => {
+  try {
+    const tasks = await Task.find({ user: req.user._id }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: tasks,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch tasks",
+    });
+  }
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// app.js (wiring)
+const express = require("express");
+const app = express();
+
+app.use(express.json());
+app.use("/api/tasks", require("./routes/taskRoutes"));
+app.use("/api/auth", require("./routes/authRoutes"));
+
+module.exports = app;
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+Notice the controller never talks to Express's \texttt{req}/\texttt{res} objects
+inside Mongoose calls, and never talks to MongoDB directly inside routing
+code. Each layer only knows about the layer immediately next to it -- that's
+what makes this chain easy to debug and to test.
+\end{notebox}
+
+\section{Standard Response Shapes}
+
+To keep the frontend's unwrapping logic (\texttt{res.data.data}) consistent
+everywhere, every endpoint in this book returns one of the following shapes.
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{lXl}
+\toprule
+\textbf{Shape} & \textbf{Used for} & \textbf{Example} \\
+\midrule
+\texttt{\{ success, data \}} &
+Single resource or list fetch/create/update &
+\texttt{GET /tasks}, \texttt{POST /tasks} \\[4pt]
+\texttt{\{ success, message \}} &
+Actions with no payload to return &
+\texttt{DELETE /tasks/:id}, \texttt{POST /auth/logout} \\[4pt]
+\texttt{\{ success, data, page, limit, total, totalPages \}} &
+Paginated list endpoints (Chapter 20) &
+\texttt{GET /tasks?page=2\&limit=10} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{warnbox}[WARNING]
+Never mix shapes for the same endpoint across success and error cases --
+e.g. returning \texttt{data} on success but a bare string on failure. Always
+keep \texttt{success: boolean} as the first field so the frontend can branch on
+it consistently regardless of HTTP status code edge cases.
+\end{warnbox}
+
+\begin{tipbox}[TIP]
+When a new feature isn't working, check these five things in order: (1) is
+the URL in \texttt{taskService.js} correct, (2) is the HTTP method correct, (3)
+does the Express route match that method and path, (4) does the controller
+query the right field, (5) does the response shape match what the frontend
+expects. This covers the overwhelming majority of ``it's just not working''
+bugs in a MERN app.
+\end{tipbox}

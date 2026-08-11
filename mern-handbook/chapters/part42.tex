@@ -1,0 +1,155 @@
+\chapter{Common Backend Errors}
+
+\begin{notebox}[NOTE]
+Same reference format as Chapter 41: \textbf{Cause}, \textbf{Identify},
+\textbf{Solution} for each error, in the order they tend to appear while
+building the backend.
+\end{notebox}
+
+\subsubsection*{"Cannot find module 'X'"}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & The package isn't installed, the import path is misspelled, or a
+relative import is missing its file extension when using ESM. \\
+Identify & Node throws \texttt{Error: Cannot find module} immediately on
+startup, with the path it tried to resolve. \\
+Solution & Run \texttt{npm install <package>} for third-party modules, or
+fix the relative path for local files. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Port Already in Use (EADDRINUSE)}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Another process (often a previous, still-running \texttt{nodemon}
+instance) is already bound to the same port. \\
+Identify & \texttt{Error: listen EADDRINUSE: address already in use
+:::5000} on startup. \\
+Solution & Kill the process on that port or change \texttt{PORT} in
+\texttt{.env}, then restart. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{MongoDB Connection Failed}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Wrong connection string, wrong credentials, or the current IP
+isn't on the Atlas Network Access allowlist. \\
+Identify & \texttt{MongooseServerSelectionError} or
+\texttt{MongoNetworkError} shortly after \texttt{mongoose.connect()}. \\
+Solution & Re-check \texttt{MONGO\_URI}, confirm the Atlas user's
+password, and add your IP (or \texttt{0.0.0.0/0} for testing) to Network
+Access. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{req.body Undefined}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & \texttt{express.json()} middleware isn't registered, or is
+registered after the routes that need it. \\
+Identify & \texttt{req.body} is \texttt{undefined} even though the
+frontend sent a JSON payload (visible in the Network tab request body). \\
+Solution & Add \texttt{app.use(express.json())} in \texttt{app.js}
+\emph{before} \texttt{app.use('/api', router)}. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{req.user Undefined}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & The \texttt{protect} middleware wasn't attached to the route, or
+was attached after the controller in the middleware chain. \\
+Identify & Controller throws when reading \texttt{req.user.\_id} even
+though the request included a valid cookie/token. \\
+Solution & Add \texttt{protect} as the route's first argument:
+\texttt{router.get('/me', protect, getMe)} (Chapter 20). \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{JWT Invalid}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & \texttt{JWT\_SECRET} differs between signing and verifying (e.g.
+different \texttt{.env} on a restarted server), or the token was
+tampered with. \\
+Identify & \texttt{jwt.verify()} throws
+\texttt{JsonWebTokenError: invalid signature}. \\
+Solution & Ensure the same \texttt{JWT\_SECRET} is used everywhere and
+was not rotated without invalidating old sessions. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{JWT Expired}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & The token's \texttt{exp} claim has passed --- normal behavior for
+a token older than its \texttt{expiresIn} setting. \\
+Identify & \texttt{jwt.verify()} throws \texttt{TokenExpiredError}. \\
+Solution & Respond with \texttt{401} so the frontend can redirect to
+login, or implement a refresh-token flow if silent renewal is needed. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Mongoose ValidationError}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & A document failed a schema rule --- missing \texttt{required}
+field, value outside \texttt{enum}, wrong type, etc. \\
+Identify & Error object has \texttt{name: 'ValidationError'} and an
+\texttt{errors} map keyed by field name. \\
+Solution & Return \texttt{400} with the specific field messages; fix the
+payload or relax/correct the schema rule. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Duplicate Key Error (E11000)}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Insert/update violates a \texttt{unique} index --- most commonly
+a duplicate \texttt{email} on the User model. \\
+Identify & Error message contains \texttt{E11000 duplicate key error}
+and the offending field/value. \\
+Solution & Catch the error code \texttt{11000} in the controller and
+return a \texttt{400} like "Email already registered." \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{500 Internal Server Error}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Generic catch-all --- an unhandled exception somewhere in the
+request lifecycle (bad destructuring, thrown error with no specific
+handling, etc.). \\
+Identify & Frontend just sees "500"; the \emph{real} cause is only visible
+in the backend terminal's stack trace. \\
+Solution & Read the stack trace top to bottom, find the first line
+pointing at your own code (not \texttt{node\_modules}), and fix that. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Route Not Found / 404}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Typo in the route path, wrong HTTP method, or a more general
+route defined earlier in the file is intercepting the request. \\
+Identify & Falls through to Express's default 404 handler (or your
+catch-all) instead of the intended controller. \\
+Solution & Double-check the method + path match exactly, and that
+specific routes (\texttt{/tasks/search}) are declared before parameterized
+ones (\texttt{/tasks/:id}). \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{CORS Error (Backend Misconfiguration)}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & \texttt{cors()} is missing, uses the wildcard \texttt{origin: '*'}
+alongside \texttt{credentials: true} (invalid combination), or lists the
+wrong frontend domain. \\
+Identify & Preflight \texttt{OPTIONS} request in the Network tab returns
+without the expected \texttt{Access-Control-Allow-*} headers. \\
+Solution & Set an explicit origin and \texttt{credentials: true} together;
+never combine \texttt{'*'} with credentials (Chapter 26). \\
+\bottomrule
+\end{tabularx}

@@ -1,0 +1,123 @@
+\chapter{Authentication Errors}
+
+\begin{notebox}[NOTE]
+These errors sit specifically in the login/session/OAuth path --- narrower
+than the general backend errors in Chapter 42, but common enough to
+deserve their own quick-reference.
+\end{notebox}
+
+\subsubsection*{401 Unauthorized}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Request reached a protected route with no valid identity --- no
+token, expired token, or invalid token. \\
+Identify & Response status \texttt{401}; body typically says "Not
+authorized" or "No token provided." \\
+Solution & Confirm the user is logged in and the cookie/token is actually
+being sent; re-authenticate if the session expired. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{403 Forbidden}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & The user \emph{is} authenticated but lacks the role/permission
+required for this action (e.g. non-admin hitting an admin route). \\
+Identify & Response status \texttt{403}, distinct from \texttt{401} ---
+identity is known, access is denied. \\
+Solution & This is expected behavior for role-based routes; verify the
+user's role matches what \texttt{authorize(...)} requires (Chapter 21). \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{JWT Not Found (Cookie Missing)}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & The auth cookie was never set, or the browser didn't send it back
+with the request. \\
+Identify & \texttt{req.cookies.token} is \texttt{undefined} in the
+\texttt{protect} middleware. \\
+Solution & Confirm login actually set the cookie (check DevTools
+Application $\to$ Cookies) and that the frontend request includes
+credentials (see below). \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{JWT Invalid}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Same root cause as Chapter 42 --- secret mismatch or a tampered
+token --- but surfaced specifically through the \texttt{protect}
+middleware on a login-dependent route. \\
+Identify & \texttt{jwt.verify()} throws inside \texttt{protect}; response
+is \texttt{401} with "Invalid token." \\
+Solution & Clear the bad cookie and force re-login; verify
+\texttt{JWT\_SECRET} consistency across restarts/deploys. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{JWT Expired}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Token's lifetime (\texttt{expiresIn}) has elapsed since login. \\
+Identify & \texttt{TokenExpiredError} in \texttt{protect}; user was
+working fine, then suddenly gets \texttt{401} on every request. \\
+Solution & Prompt re-login on \texttt{401}; the frontend's Axios
+interceptor should redirect to \texttt{/login} when this happens
+(Chapter 33). \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Cookie Not Sent}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Frontend Axios instance is missing \texttt{withCredentials: true},
+or the backend's \texttt{cors()} is missing \texttt{credentials: true}
+with a specific (non-wildcard) origin. \\
+Identify & Cookie is visibly set in DevTools after login, but subsequent
+requests don't include it --- \texttt{req.cookies} is empty on the
+backend. \\
+Solution & Set \texttt{withCredentials: true} on the Axios instance
+\emph{and} \texttt{cors(\{ origin: FRONTEND\_URL, credentials: true \})}
+on the backend --- both sides are required. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Google OAuth: redirect\_uri\_mismatch}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & The redirect URI sent in the OAuth request doesn't exactly match
+one of the "Authorized redirect URIs" configured in the Google Cloud
+Console (protocol, domain, port, or trailing slash differs). \\
+Identify & Google's consent screen shows "Error 400:
+redirect\_uri\_mismatch" instead of the login prompt. \\
+Solution & Copy the exact callback URL your backend uses into the Google
+Cloud Console credentials, matching scheme and port precisely. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Google OAuth: invalid\_client}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Wrong or missing \texttt{GOOGLE\_CLIENT\_ID}/\texttt{GOOGLE\_CLIENT\_SECRET},
+or credentials from the wrong Google Cloud project. \\
+Identify & Google returns "Error 401: invalid\_client" before showing the
+consent screen. \\
+Solution & Re-copy the client ID/secret from the correct project into
+\texttt{.env} and restart the backend. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{UI Not Updating After Login}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Login succeeded and the cookie was set, but the React
+\texttt{AuthContext}'s \texttt{user} state was never refreshed, so
+components still render as "logged out." \\
+Identify & Network tab shows a successful login response, but the navbar/
+protected routes still behave as unauthenticated. \\
+Solution & After a successful login call, update context state directly
+(or re-fetch \texttt{/auth/me}) instead of relying on a page reload
+(Chapter 32). \\
+\bottomrule
+\end{tabularx}

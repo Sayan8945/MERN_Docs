@@ -1,0 +1,122 @@
+\chapter{Testing APIs with Postman}
+
+Test an endpoint in Postman before wiring it to React. If it works in
+Postman but fails from the frontend, the bug is frontend-side; if it fails
+in Postman too, it's backend-side.
+
+\begin{notebox}[NOTE]
+Enable Postman's cookie jar (on by default) so the HttpOnly JWT cookie set
+by \texttt{/login} is stored and resent automatically, like a browser.
+\end{notebox}
+
+\section{Register}
+
+\textbf{POST} \texttt{http://localhost:5000/api/auth/register} --
+\texttt{Content-Type: application/json}
+
+\begin{lstlisting}
+// Body
+{ "name": "Ada Lovelace", "email": "ada@example.com", "password": "SecurePass123" }
+\end{lstlisting}
+
+\begin{lstlisting}
+// 201 Created
+{ "success": true, "data": { "id": "6614...", "name": "Ada Lovelace", "email": "ada@example.com" } }
+\end{lstlisting}
+
+\section{Login}
+
+\textbf{POST} \texttt{http://localhost:5000/api/auth/login}
+
+\begin{lstlisting}
+// Body
+{ "email": "ada@example.com", "password": "SecurePass123" }
+\end{lstlisting}
+
+Check the response's \textbf{Cookies} tab for the \texttt{token} cookie ---
+confirms the jar stored it for reuse.
+
+\begin{lstlisting}
+// 200 OK
+{ "success": true, "data": { "id": "6614...", "email": "ada@example.com" } }
+\end{lstlisting}
+
+\section{Get Profile (\texttt{/me})}
+
+\textbf{GET} \texttt{http://localhost:5000/api/auth/me} --- no body, no
+manual header; Postman resends the stored cookie.
+
+\begin{lstlisting}
+// 200 OK
+{ "success": true, "data": { "id": "6614...", "name": "Ada Lovelace", "email": "ada@example.com" } }
+\end{lstlisting}
+
+A \texttt{401} here means the cookie jar didn't persist it, or login never
+set it (check \texttt{res.cookie}).
+
+\section{Create Task}
+
+\textbf{POST} \texttt{http://localhost:5000/api/tasks}
+
+\begin{lstlisting}
+// Body
+{ "title": "Write chapter 39", "description": "Postman testing", "status": "pending" }
+\end{lstlisting}
+
+\begin{lstlisting}
+// 201 Created
+{ "success": true, "data": { "_id": "6715...", "title": "Write chapter 39", "status": "pending", "owner": "6614..." } }
+\end{lstlisting}
+
+\section{Get Tasks}
+
+\textbf{GET} \texttt{http://localhost:5000/api/tasks}
+
+\begin{lstlisting}
+// 200 OK
+{ "success": true, "data": [{ "_id": "6715...", "title": "Write chapter 39", "status": "pending" }] }
+\end{lstlisting}
+
+\section{Update Task}
+
+\textbf{PUT} \texttt{http://localhost:5000/api/tasks/6715...}
+
+\begin{lstlisting}
+// Body
+{ "status": "done" }
+\end{lstlisting}
+
+\begin{lstlisting}
+// 200 OK
+{ "success": true, "data": { "_id": "6715...", "title": "Write chapter 39", "status": "done" } }
+\end{lstlisting}
+
+\section{Delete Task}
+
+\textbf{DELETE} \texttt{http://localhost:5000/api/tasks/6715...} --- no body.
+
+\begin{lstlisting}
+// 200 OK
+{ "success": true, "message": "Task deleted" }
+\end{lstlisting}
+
+\section{What to Check on Every Request}
+
+\begin{itemize}
+\item[$\square$] Status code matches the documented behavior
+\item[$\square$] Response body has the expected shape
+\item[$\square$] \texttt{Content-Type} header set on requests with a body
+\item[$\square$] Cookie jar shows and resends \texttt{token} after login
+\item[$\square$] Missing ID returns \texttt{404}, not a \texttt{500}
+\end{itemize}
+
+\begin{tipbox}[TIP]
+Save requests into a collection with the base URL as a variable
+(\texttt{\{\{baseUrl\}\}/tasks}) --- switching environments then means
+changing one variable.
+\end{tipbox}
+
+\whatwhyhow
+{Every backend route is tested directly with Postman -- method, URL, headers, body -- before React calls it, using the cookie jar to persist the JWT.}
+{Testing through the UI conflates frontend and backend bugs; testing the API directly isolates backend correctness first.}
+{Send each request with the documented method/body, verify status and shape, and confirm cookies persist across login -> \texttt{/me} -> task CRUD.}

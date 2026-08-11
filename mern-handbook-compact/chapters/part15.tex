@@ -1,0 +1,96 @@
+\chapter{Database Relationships}
+
+\section{One-to-One: User and Profile}
+
+\begin{diagrambox}[One-to-One]
+\begin{verbatim}
+User { _id: "u1", name: "Asha" }
+Profile { _id: "p1", user: "u1" (ref User), bio: "...", location: "Kolkata" }
+\end{verbatim}
+\end{diagrambox}
+
+\begin{lstlisting}[language=JavaScript]
+// models/Profile.js
+const profileSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, unique: true },
+  bio: String,
+  location: String,
+});
+\end{lstlisting}
+
+\section{One-to-Many: User and Tasks}
+
+\begin{diagrambox}[One-to-Many]
+\begin{verbatim}
+User "u1"
+  |-- Task "t1" { user: "u1", title: "Fix login bug" }
+  |-- Task "t2" { user: "u1", title: "Write tests" }
+  `-- Task "t3" { user: "u1", title: "Deploy to prod" }
+\end{verbatim}
+\end{diagrambox}
+
+This is the \texttt{Task.user} field from Chapter 13: each Task stores an \texttt{ObjectId} pointing back to its owning User.
+
+\section{populate(): Resolving References}
+
+By default Mongoose returns only the raw \texttt{ObjectId} for a \texttt{ref} field. \texttt{.populate()} replaces it with the actual document.
+
+\begin{lstlisting}[language=JavaScript]
+// Without populate
+const task = await Task.findById(taskId);
+
+// With populate - only pull name and email
+const task = await Task.find().populate("user", "name email");
+\end{lstlisting}
+
+\subsection{Before / After populate("user", "name email")}
+
+\begin{lstlisting}[language=JavaScript]
+// Before: user: "664e0a1b2c3d4e5f6a7b8c9d"
+// After:
+{
+  "title": "Fix login bug",
+  "status": "todo",
+  "user": { "_id": "664e0a1b2c3d4e5f6a7b8c9d", "name": "Asha Verma", "email": "asha@mail.com" }
+}
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+The \texttt{"name email"} argument is a projection limiting which fields come back, keeping payloads small and avoiding exposing fields like \texttt{password}.
+\end{notebox}
+
+\section{Many-to-Many: Users and Projects}
+
+A many-to-many relation needs an array of references on at least one side, here a Project's array of member User ids.
+
+\begin{lstlisting}[language=JavaScript]
+// models/Project.js
+const projectSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  },
+  { timestamps: true }
+);
+\end{lstlisting}
+
+\begin{diagrambox}[Many-to-Many]
+\begin{verbatim}
+Project "Website Redesign" members: [u1, u2, u3]
+Project "Mobile App"       members: [u2, u4]
+u2 belongs to both projects.
+\end{verbatim}
+\end{diagrambox}
+
+\begin{lstlisting}[language=JavaScript]
+const project = await Project.findById(projectId).populate("members", "name email");
+// project.members is now an array of user objects, not ids
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+\texttt{.populate()} works the same for a single \texttt{ObjectId} or an array --- Mongoose detects the schema type automatically.
+\end{tipbox}
+
+\begin{warnbox}[WARNING]
+Populate runs an extra query; only populate fields the response actually needs to avoid hurting performance.
+\end{warnbox}

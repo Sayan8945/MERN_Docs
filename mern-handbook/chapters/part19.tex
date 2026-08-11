@@ -1,0 +1,100 @@
+\chapter{Secure Authentication Cookies}
+
+Generating a JWT is only half the job -- how it travels between server and
+browser matters just as much. A token sent carelessly (e.g. stored in
+\texttt{localStorage} and attached manually via JavaScript) is exposed to
+any script running on the page, including malicious ones injected through an
+XSS vulnerability. This chapter covers storing the JWT in a properly
+configured cookie so the browser handles it safely and automatically.
+
+\section{Setting the Cookie}
+
+First, parse incoming cookies with the \texttt{cookie-parser} middleware:
+
+\begin{lstlisting}[language=JavaScript]
+// app.js
+import cookieParser from "cookie-parser";
+app.use(cookieParser());
+\end{lstlisting}
+
+Then set the cookie when issuing a token at login:
+
+\begin{lstlisting}[language=JavaScript]
+res.cookie("token", token, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days, in milliseconds
+});
+\end{lstlisting}
+
+And clear it on logout:
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/authController.js
+export const logoutUser = (req, res) => {
+  res.clearCookie("token");
+  res.status(200).json({ success: true, message: "Logged out" });
+};
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+\texttt{clearCookie} must be called with the same options (path, domain)
+that were used when the cookie was set, or the browser will not recognize it
+as the same cookie and will fail to remove it.
+\end{warnbox}
+
+\section{Why Each Cookie Option Exists}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{Option} & \textbf{What it does} & \textbf{Why it matters} \\
+\midrule
+\texttt{httpOnly} & Blocks \texttt{document.cookie} from reading this cookie in JavaScript. & Prevents an XSS attack (malicious injected script) from stealing the token. \\
+\texttt{secure} & Cookie is only sent over HTTPS connections. & Prevents the token from being visible to anyone snooping on plain HTTP traffic. \\
+\texttt{sameSite} & Controls whether the cookie is sent on cross-site requests. \texttt{"lax"} sends it on top-level navigation but not on cross-site subrequests/forms. & Mitigates CSRF by stopping other sites from silently riding on the user's session. \\
+\texttt{maxAge} & How long the cookie persists before the browser deletes it. & Matches the JWT's own \texttt{expiresIn} so an expired token isn't kept around uselessly. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{notebox}[NOTE]
+\texttt{secure} is conditioned on \texttt{NODE\_ENV === "production"} because
+local development typically runs over plain \texttt{http://localhost}. Setting
+\texttt{secure: true} unconditionally would silently stop the cookie from
+being set at all during development, since browsers refuse to send secure
+cookies over non-HTTPS origins.
+\end{notebox}
+
+\section{The Frontend Side: withCredentials}
+
+Cookies are domain-scoped and, for cross-origin requests (React dev server
+on port 5173 talking to an API on port 5000, or a separate frontend/backend
+domain in production), the browser will not attach or store cookies unless
+explicitly told to. Configure the shared axios instance once:
+
+\begin{lstlisting}[language=JavaScript]
+// src/api/axios.js
+import axios from "axios";
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL,
+  withCredentials: true, // send and accept cookies cross-origin
+});
+
+export default api;
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+\texttt{withCredentials: true} on the frontend only works if the backend's
+CORS configuration explicitly sets \texttt{credentials: true} and lists the
+exact frontend origin (never a wildcard \texttt{*}) in \texttt{origin}. The
+two settings must match on both sides, or the browser silently blocks the
+cookie. Full CORS setup is covered in Chapter 26.
+\end{warnbox}
+
+\whatwhyhow
+{Storing the JWT in a cookie configured with \texttt{httpOnly}, \texttt{secure}, and \texttt{sameSite}, rather than in localStorage or a plain cookie.}
+{These three flags close off the two most common ways tokens get stolen or misused: XSS reading it from JavaScript, and network sniffing or CSRF riding along with it.}
+{Set it with \texttt{res.cookie("token", token, \{httpOnly, secure, sameSite, maxAge\})} on login, clear it with \texttt{res.clearCookie("token")} on logout, and pair it with \texttt{withCredentials: true} on the frontend plus a matching CORS config on the backend.}

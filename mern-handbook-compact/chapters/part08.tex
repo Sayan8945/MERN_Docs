@@ -1,0 +1,139 @@
+\chapter{Establishing API Communication}
+
+This chapter connects Chapters 1--7 into one full round trip: a React page
+calling \texttt{api.get("/tasks")} and rendering what MongoDB returns. Every
+CRUD feature later in the book is a variation of this pattern.
+
+\section{The Complete Cycle, Labeled}
+
+\begin{diagrambox}[GET /api/tasks -- Full Cycle]
+\begin{verbatim}
+Dashboard.jsx: useEffect(() => taskService.getTasks(), [])
+  -> taskService.js: api.get("/tasks")
+  -> axios instance: baseURL + withCredentials (JWT cookie)
+  -> HTTP Request: GET /api/tasks, Cookie: token=<jwt>
+  -> app.js: app.use("/api/tasks", taskRoutes)
+  -> taskRoutes.js: router.get("/", protect, getTasks)
+  -> middleware/auth.js: protect verifies JWT -> req.user
+  -> taskController.js: getTasks(req, res)
+  -> Mongoose: Task.find({ user: req.user._id })
+  -> MongoDB: scans "tasks", returns matching documents
+  -> taskController.js: res.status(200).json({ success:true, data:tasks })
+  -> HTTP Response: 200 OK, { success, data: [...] }
+  -> axios resolves with response.data
+  -> taskService.js returns res.data.data
+  -> Dashboard.jsx: setTasks(data) -> TaskList renders TaskCards
+\end{verbatim}
+\end{diagrambox}
+
+\section{The Frontend Side}
+
+\begin{lstlisting}[language=JavaScript]
+// src/services/taskService.js
+import api from "../api/axios";
+
+export async function getTasks() {
+  try {
+    const res = await api.get("/tasks");
+    return res.data.data;
+  } catch (err) {
+    throw new Error(err.response?.data?.message || "Failed to load tasks");
+  }
+}
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// src/pages/Dashboard.jsx
+import { useEffect, useState } from "react";
+import { getTasks } from "../services/taskService";
+import TaskList from "../components/TaskList";
+
+export default function Dashboard() {
+  const [tasks, setTasks] = useState([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getTasks()
+      .then(setTasks)
+      .catch((err) => setError(err.message));
+  }, []);
+
+  if (error) return <p className="error">{error}</p>;
+  return <TaskList tasks={tasks} />;
+}
+\end{lstlisting}
+
+\section{The Backend Side}
+
+\begin{lstlisting}[language=JavaScript]
+// routes/taskRoutes.js
+const express = require("express");
+const router = express.Router();
+const { protect } = require("../middleware/auth");
+const { getTasks, createTask } = require("../controllers/taskController");
+
+router.get("/", protect, getTasks);
+router.post("/", protect, createTask);
+
+module.exports = router;
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/taskController.js
+const Task = require("../models/Task");
+
+exports.getTasks = async (req, res) => {
+  try {
+    const tasks = await Task.find({ user: req.user._id }).sort({ createdAt: -1 });
+    res.status(200).json({ success: true, data: tasks });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to fetch tasks" });
+  }
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// app.js (wiring)
+const express = require("express");
+const app = express();
+
+app.use(express.json());
+app.use("/api/tasks", require("./routes/taskRoutes"));
+app.use("/api/auth", require("./routes/authRoutes"));
+
+module.exports = app;
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+Each layer only knows the layer next to it -- the controller never touches
+\texttt{req}/\texttt{res} inside Mongoose calls, and routing never touches MongoDB
+directly. That's what keeps the chain easy to debug and test.
+\end{notebox}
+
+\section{Standard Response Shapes}
+
+Every endpoint in this book returns one of these shapes, keeping the
+frontend's \texttt{res.data.data} unwrapping consistent.
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{lXl}
+\toprule
+\textbf{Shape} & \textbf{Used for} & \textbf{Example} \\
+\midrule
+\texttt{\{ success, data \}} & Fetch/create/update & \texttt{GET/POST /tasks} \\
+\texttt{\{ success, message \}} & No payload actions & \texttt{DELETE /tasks/:id} \\
+\texttt{\{ success, data, page, limit, total, totalPages \}} & Pagination (Ch. 20) & \texttt{GET /tasks?page=2} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{warnbox}[WARNING]
+Never mix shapes for the same endpoint across success/error cases -- keep
+\texttt{success: boolean} as the first field always.
+\end{warnbox}
+
+\begin{tipbox}[TIP]
+When a feature breaks, check in order: URL, HTTP method, route match,
+controller query field, response shape. This covers most MERN bugs.
+\end{tipbox}

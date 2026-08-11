@@ -1,0 +1,113 @@
+\chapter{Common Backend Errors}
+
+\begin{notebox}[NOTE]
+Same format as Chapter 41, ordered as errors tend to appear while building the backend.
+\end{notebox}
+
+\subsubsection*{"Cannot find module 'X'"}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Package not installed, import path misspelled, or missing extension for ESM. \\
+Identify & \texttt{Error: Cannot find module} on startup, with the path it tried. \\
+Solution & \texttt{npm install <package>} for third-party, or fix the relative path. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Port Already in Use (EADDRINUSE)}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Another process (often a stale \texttt{nodemon}) already bound to that port. \\
+Identify & \texttt{Error: listen EADDRINUSE: address already in use :::5000}. \\
+Solution & Kill the process on that port or change \texttt{PORT} in \texttt{.env}, restart. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{MongoDB Connection Failed}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Wrong connection string/credentials, or IP not on Atlas Network Access allowlist. \\
+Identify & \texttt{MongooseServerSelectionError} or \texttt{MongoNetworkError} after \texttt{connect()}. \\
+Solution & Check \texttt{MONGO\_URI} and password; add IP (or \texttt{0.0.0.0/0} for testing) to Network Access. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{req.body Undefined}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & \texttt{express.json()} not registered, or registered after the routes needing it. \\
+Identify & \texttt{req.body} is \texttt{undefined} despite a JSON payload sent. \\
+Solution & Add \texttt{app.use(express.json())} in \texttt{app.js} before \texttt{app.use('/api', router)}. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{req.user Undefined}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & \texttt{protect} middleware not attached, or attached after the controller. \\
+Identify & Controller throws reading \texttt{req.user.\_id} despite a valid cookie/token. \\
+Solution & Add \texttt{protect} first: \texttt{router.get('/me', protect, getMe)} (Ch. 20). \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{JWT Invalid}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & \texttt{JWT\_SECRET} differs between signing and verifying, or token tampered with. \\
+Identify & \texttt{jwt.verify()} throws \texttt{JsonWebTokenError: invalid signature}. \\
+Solution & Use the same \texttt{JWT\_SECRET} everywhere; don't rotate without invalidating sessions. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{JWT Expired}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Token's \texttt{exp} claim passed --- normal after \texttt{expiresIn} elapses. \\
+Identify & \texttt{jwt.verify()} throws \texttt{TokenExpiredError}. \\
+Solution & Respond \texttt{401} to redirect to login, or implement a refresh-token flow. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Mongoose ValidationError}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Document failed a schema rule --- missing required field, bad enum/type, etc. \\
+Identify & \texttt{name: 'ValidationError'} with an \texttt{errors} map keyed by field. \\
+Solution & Return \texttt{400} with field messages; fix payload or the schema rule. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Duplicate Key Error (E11000)}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Insert/update violates a \texttt{unique} index --- commonly duplicate \texttt{email}. \\
+Identify & Message contains \texttt{E11000 duplicate key error} and the offending field. \\
+Solution & Catch error code \texttt{11000}, return \texttt{400} like "Email already registered." \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{500 Internal Server Error}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Generic catch-all --- unhandled exception in the request lifecycle. \\
+Identify & Frontend just sees "500"; real cause is in the backend terminal's stack trace. \\
+Solution & Read the trace top-down, find the first line pointing at your own code, fix it. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Route Not Found / 404}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Typo in path, wrong HTTP method, or an earlier general route intercepts it. \\
+Identify & Falls through to Express's default 404 handler instead of the intended controller. \\
+Solution & Check method + path match exactly; specific routes before parameterized ones. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{CORS Error (Backend Misconfiguration)}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & \texttt{cors()} missing, wildcard \texttt{origin: '*'} with \texttt{credentials: true} (invalid), or wrong domain. \\
+Identify & Preflight \texttt{OPTIONS} response lacks expected \texttt{Access-Control-Allow-*} headers. \\
+Solution & Set an explicit origin with \texttt{credentials: true}; never combine \texttt{'*'} with credentials (Ch. 26). \\
+\bottomrule
+\end{tabularx}

@@ -1,0 +1,133 @@
+\chapter{Database Relationships}
+
+\section{One-to-One: User and Profile}
+
+\begin{diagrambox}[One-to-One]
+\begin{verbatim}
+User Document                    Profile Document
+--------------                   -----------------
+_id: "u1"                        _id: "p1"
+name: "Asha"                     user: "u1"  (ObjectId ref User)
+email: "asha@mail.com"           bio: "Full-stack developer"
+                                  location: "Kolkata"
+\end{verbatim}
+\end{diagrambox}
+
+\begin{lstlisting}[language=JavaScript]
+// models/Profile.js
+const profileSchema = new mongoose.Schema({
+  user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, unique: true },
+  bio: String,
+  location: String,
+});
+\end{lstlisting}
+
+\section{One-to-Many: User and Tasks}
+
+\begin{diagrambox}[One-to-Many]
+\begin{verbatim}
+User "u1"
+   |
+   |-- Task "t1"  { user: "u1", title: "Fix login bug" }
+   |-- Task "t2"  { user: "u1", title: "Write tests"    }
+   `-- Task "t3"  { user: "u1", title: "Deploy to prod"  }
+\end{verbatim}
+\end{diagrambox}
+
+This is exactly the \texttt{Task.user} field from Chapter 13: each Task document stores
+a single \texttt{ObjectId} pointing back to its owning User.
+
+\section{populate(): Resolving References}
+
+By default, Mongoose stores and returns only the raw \texttt{ObjectId} for a \texttt{ref}
+field. \texttt{.populate()} replaces that id with the actual referenced document.
+
+\begin{lstlisting}[language=JavaScript]
+// Without populate
+const task = await Task.findById(taskId);
+
+// With populate - only pull name and email from the User document
+const task = await Task.find().populate("user", "name email");
+\end{lstlisting}
+
+\subsection{Before populate() — raw ObjectId}
+
+\begin{lstlisting}[language=JavaScript]
+{
+  "_id": "665f1a2b3c4d5e6f7a8b9c0d",
+  "title": "Fix login bug",
+  "status": "todo",
+  "user": "664e0a1b2c3d4e5f6a7b8c9d"
+}
+\end{lstlisting}
+
+\subsection{After populate("user", "name email")}
+
+\begin{lstlisting}[language=JavaScript]
+{
+  "_id": "665f1a2b3c4d5e6f7a8b9c0d",
+  "title": "Fix login bug",
+  "status": "todo",
+  "user": {
+    "_id": "664e0a1b2c3d4e5f6a7b8c9d",
+    "name": "Asha Verma",
+    "email": "asha@mail.com"
+  }
+}
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+Passing \texttt{"name email"} as the second argument to \texttt{.populate()} is a projection —
+it limits which fields of the referenced document are returned, keeping the payload
+small and avoiding accidental exposure of fields like \texttt{password}.
+\end{notebox}
+
+\section{Many-to-Many: Users and Projects}
+
+A many-to-many relationship needs an array of references on at least one side —
+here, a Project keeps an array of member User ids.
+
+\begin{lstlisting}[language=JavaScript]
+// models/Project.js
+const projectSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  },
+  { timestamps: true }
+);
+\end{lstlisting}
+
+\begin{diagrambox}[Many-to-Many]
+\begin{verbatim}
+Project "Website Redesign"          Project "Mobile App"
+   members: [u1, u2, u3]                members: [u2, u4]
+
+User u1 ---belongs to---> Website Redesign
+User u2 ---belongs to---> Website Redesign, Mobile App
+User u3 ---belongs to---> Website Redesign
+User u4 ---belongs to---> Mobile App
+\end{verbatim}
+\end{diagrambox}
+
+\begin{lstlisting}[language=JavaScript]
+const project = await Project.findById(projectId).populate("members", "name email");
+
+// project.members is now an array of user objects, not ids:
+// members: [
+//   { _id: "u1", name: "Asha", email: "asha@mail.com" },
+//   { _id: "u2", name: "Ravi", email: "ravi@mail.com" },
+//   ...
+// ]
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+\texttt{.populate()} works the same way whether the reference field holds a single
+\texttt{ObjectId} or an array of them — Mongoose detects the schema type automatically.
+\end{tipbox}
+
+\begin{warnbox}[WARNING]
+Populate runs an extra query behind the scenes. Populating deeply nested or large
+arrays on every request can hurt performance — only populate the fields the response
+actually needs.
+\end{warnbox}

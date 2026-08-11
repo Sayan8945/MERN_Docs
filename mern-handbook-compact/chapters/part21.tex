@@ -1,0 +1,92 @@
+\chapter{Authorization: Roles and Permissions}
+
+Knowing \emph{who} made a request is only half the story -- knowing \emph{what they're allowed to do} is the other half. A user and an admin both pass \texttt{protect} from Chapter 20, but only one should delete someone else's task.
+
+\section{Authentication vs Authorization}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{} & \textbf{Authentication} & \textbf{Authorization} \\
+\midrule
+Question & "Who are you?" & "What can you do?" \\
+When & Every protected request, first & After authentication \\
+Implemented by & \texttt{protect} (Ch. 18/20) & \texttt{authorize(...roles)} (this chapter) \\
+Failure & 401 Unauthorized & 403 Forbidden \\
+Based on & Valid JWT/session & \texttt{req.user.role} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{notebox}[NOTE]
+Shortcut: \textbf{401} means "I don't know who you are." \textbf{403} means "I know who you are, and the answer is no."
+\end{notebox}
+
+\section{The Role Field}
+
+Recall the User schema's \texttt{role} field (Chapter 13):
+
+\begin{lstlisting}[language=JavaScript]
+// models/User.js (relevant field)
+role: { type: String, enum: ["user", "manager", "admin"], default: "user" },
+\end{lstlisting}
+
+\begin{itemize}
+  \item \textbf{user} -- own tasks only.
+  \item \textbf{manager} -- team tasks.
+  \item \textbf{admin} -- full access.
+\end{itemize}
+
+\section{The \texttt{authorize} Middleware Factory}
+
+One factory function takes allowed roles and returns a tailored middleware, instead of a separate middleware per role combination.
+
+\begin{lstlisting}[language=JavaScript]
+// middleware/authorize.js
+export const authorize = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Not authenticated" });
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: `Role '${req.user.role}' is not permitted to perform this action`,
+      });
+    }
+
+    next();
+  };
+};
+\end{lstlisting}
+
+\texttt{authorize} always runs after \texttt{protect}, so \texttt{!req.user} is just a defensive guard.
+
+\section{Using It on Routes}
+
+\begin{lstlisting}[language=JavaScript]
+// routes/taskRoutes.js
+import { protect } from "../middleware/authMiddleware.js";
+import { authorize } from "../middleware/authorize.js";
+import { deleteTask, getTasks } from "../controllers/taskController.js";
+
+router.get("/tasks", protect, getTasks);
+
+router.delete("/tasks/:id", protect, authorize("admin", "manager"), deleteTask);
+\end{lstlisting}
+
+A request must pass \texttt{protect} then \texttt{authorize("admin", "manager")} before \texttt{deleteTask} runs -- a plain \texttt{user} gets a 403 and the delete never touches the database.
+
+\begin{tipbox}[TIP]
+Because roles are arguments, the same middleware covers every combination: \texttt{authorize("admin")}, \texttt{authorize("admin", "manager")}, etc.
+\end{tipbox}
+
+\begin{warnbox}[WARNING]
+Role checks alone don't cover ownership -- a manager passing \texttt{authorize("manager")} shouldn't necessarily delete another team's task. Add an explicit ownership check inside the controller too.
+\end{warnbox}
+
+\whatwhyhow
+{An \texttt{authorize(...roles)} middleware factory that checks \texttt{req.user.role} against a list of permitted roles for a given route.}
+{Authentication only proves identity; without a separate authorization check, any logged-in user -- regardless of role -- could call sensitive endpoints like deleting tasks or managing other users.}
+{Chain it after \texttt{protect} in the route definition: \texttt{router.delete("/tasks/:id", protect, authorize("admin", "manager"), deleteTask)}, returning 403 for any role not in the allowed list.}

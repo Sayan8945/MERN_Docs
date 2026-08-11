@@ -1,0 +1,117 @@
+\chapter{Authorization: Roles and Permissions}
+
+Knowing \emph{who} is making a request is only half the security story.
+Knowing \emph{what that person is allowed to do} is the other half. A logged
+in user and a logged-in admin both pass the \texttt{protect} middleware from
+Chapter 20 -- but only one of them should be able to delete someone else's
+task. That distinction is authorization.
+
+\section{Authentication vs Authorization}
+
+These two terms get used interchangeably in casual conversation, but they
+answer different questions and are implemented as separate middleware layers.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{} & \textbf{Authentication} & \textbf{Authorization} \\
+\midrule
+Question answered & "Who are you?" & "What are you allowed to do?" \\
+When it runs & Every protected request, first & After authentication, before the controller \\
+Implemented by & \texttt{protect} middleware (Ch. 18/20) & \texttt{authorize(...roles)} middleware (this chapter) \\
+Failure response & 401 Unauthorized & 403 Forbidden \\
+Based on & Valid JWT / session & \texttt{req.user.role} (or other permission data) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{notebox}[NOTE]
+A precise mental shortcut: \textbf{401} means "I don't know who you are" (or
+your proof of identity is invalid). \textbf{403} means "I know exactly who
+you are, and the answer is still no."
+\end{notebox}
+
+\section{The Role Field}
+
+Recall the User schema from Chapter 13 -- the \texttt{role} field constrains
+every user to one of three values:
+
+\begin{lstlisting}[language=JavaScript]
+// models/User.js (relevant field)
+role: { type: String, enum: ["user", "manager", "admin"], default: "user" },
+\end{lstlisting}
+
+\begin{itemize}
+  \item \textbf{user} -- can manage only their own tasks.
+  \item \textbf{manager} -- can view and update tasks across their team.
+  \item \textbf{admin} -- full access, including deleting any task or user.
+\end{itemize}
+
+\section{The \texttt{authorize} Middleware Factory}
+
+Rather than writing a separate middleware for every role combination, write
+one factory function that takes the allowed roles as arguments and returns
+a middleware tailored to that route.
+
+\begin{lstlisting}[language=JavaScript]
+// middleware/authorize.js
+export const authorize = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: "Not authenticated" });
+    }
+
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: `Role '${req.user.role}' is not permitted to perform this action`,
+      });
+    }
+
+    next();
+  };
+};
+\end{lstlisting}
+
+Because \texttt{authorize} always runs after \texttt{protect}, it can rely
+on \texttt{req.user} already being set -- the \texttt{!req.user} check is
+just a defensive guard in case the middleware order is ever misconfigured.
+
+\section{Using It on Routes}
+
+\begin{lstlisting}[language=JavaScript]
+// routes/taskRoutes.js
+import { protect } from "../middleware/authMiddleware.js";
+import { authorize } from "../middleware/authorize.js";
+import { deleteTask, getTasks } from "../controllers/taskController.js";
+
+router.get("/tasks", protect, getTasks);
+
+router.delete("/tasks/:id", protect, authorize("admin", "manager"), deleteTask);
+\end{lstlisting}
+
+Reading this route top to bottom: a request must first pass \texttt{protect}
+(prove identity), then \texttt{authorize("admin", "manager")} (prove
+permission), before \texttt{deleteTask} ever executes. A plain \texttt{user}
+role gets a 403 and the delete never touches the database.
+
+\begin{tipbox}[TIP]
+Because \texttt{authorize} takes roles as arguments, the same middleware
+function covers every permission combination in the app --
+\texttt{authorize("admin")} for admin-only routes,
+\texttt{authorize("admin", "manager")} for shared access, with no
+duplicated logic.
+\end{tipbox}
+
+\begin{warnbox}[WARNING]
+Role checks alone don't cover ownership. A \texttt{manager} passing
+\texttt{authorize("manager")} still shouldn't necessarily be able to delete
+a task belonging to a different team. For ownership-level rules, add an
+explicit check inside the controller (e.g. comparing \texttt{task.user}
+against \texttt{req.user.\_id}) in addition to the role middleware.
+\end{warnbox}
+
+\whatwhyhow
+{An \texttt{authorize(...roles)} middleware factory that checks \texttt{req.user.role} against a list of permitted roles for a given route.}
+{Authentication only proves identity; without a separate authorization check, any logged-in user -- regardless of role -- could call sensitive endpoints like deleting tasks or managing other users.}
+{Chain it after \texttt{protect} in the route definition: \texttt{router.delete("/tasks/:id", protect, authorize("admin", "manager"), deleteTask)}, returning 403 for any role not in the allowed list.}

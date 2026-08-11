@@ -1,0 +1,91 @@
+\chapter{How a MERN Application Works}
+
+Every feature in this book is a variation of the same round trip: a user
+action in the browser eventually changes data in the database and the UI
+updates to reflect it.
+
+\section{The Full Request Lifecycle}
+
+A MERN request always travels through the same layers, in the same order,
+whether it's a login form or a task creation button.
+
+\begin{diagrambox}[MERN Request Lifecycle]
+\begin{verbatim}
+ User -> React Component (JSX + handler)
+      -> Event Handler (onClick/onSubmit)
+      -> API function (services/taskService.js)
+      -> Axios instance (src/api/axios.js)
+      -> HTTP Request (method + URL + headers + body)
+      -> Express App -> Router (routes/taskRoutes.js)
+      -> Middleware (auth, validation)
+      -> Controller (controllers/taskController.js)
+      -> Service/Model layer
+      -> Mongoose (Task.find / Task.create / ...)
+      -> MongoDB (data on disk)
+      -> back up through Controller ({ success, data })
+      -> JSON Response
+      -> Axios (resolves/rejects)
+      -> React State (useState/context)
+      -> UI Update (re-render)
+\end{verbatim}
+\end{diagrambox}
+
+\begin{itemize}
+  \item \textbf{React Component} -- renders UI, listens for interaction.
+  \item \textbf{Event Handler} -- captures interaction, decides what to call.
+  \item \textbf{API function} -- wrapper knowing the endpoint and payload shape.
+  \item \textbf{Axios} -- HTTP client; attaches base URL, headers, credentials.
+  \item \textbf{Express App/Router} -- matches the request to a route.
+  \item \textbf{Middleware} -- cross-cutting checks before the controller.
+  \item \textbf{Controller} -- validates input, calls the model, builds response.
+  \item \textbf{Mongoose} -- translates JS calls into MongoDB queries and back.
+  \item \textbf{MongoDB} -- persists and retrieves documents.
+  \item \textbf{JSON Response} -- consistent \texttt{\{ success, data \}} envelope.
+  \item \textbf{React State} -- single source of truth driving the UI.
+\end{itemize}
+
+\begin{notebox}[NOTE]
+Every chapter teaches one segment of this diagram in depth -- the chain
+itself never changes as the app grows.
+\end{notebox}
+
+\section{Concrete Example: ``User Clicks Create Task''}
+
+Tracing one real interaction end to end in the \textbf{Task Management System}:
+
+\begin{diagrambox}[Example: Create Task]
+\begin{verbatim}
+1. User fills Title+Description, clicks "Create Task"
+2. TaskForm.jsx -> handleSubmit(e)
+3. taskService.js -> createTask({ title, description })
+4. axios -> POST /api/tasks (JSON body, withCredentials)
+5. Express router -> router.post("/tasks", protect, createTask)
+6. protect middleware -> verifies JWT cookie, sets req.user
+7. createTask controller -> validates body, Task.create({...})
+8. Mongoose inserts document into "tasks" collection
+9. MongoDB returns new document with _id
+10. Controller -> res.status(201).json({ success: true, data: task })
+11. Axios promise resolves with response.data
+12. React setTasks -> new task appended to state
+13. UI -> TaskList re-renders, new TaskCard appears
+\end{verbatim}
+\end{diagrambox}
+
+\begin{enumerate}
+  \item \textbf{User action:} types into two inputs, clicks submit -- no network yet.
+  \item \textbf{Component:} \texttt{TaskForm.jsx} owns form state via \texttt{useState}.
+  \item \textbf{Service function:} \texttt{taskService.js} is the only place that knows the endpoint URL.
+  \item \textbf{Axios:} shared instance adds \texttt{baseURL}, \texttt{Content-Type}, cookies.
+  \item \textbf{Express router:} \texttt{/api/tasks} maps to \texttt{createTask}.
+  \item \textbf{Middleware:} \texttt{protect} rejects with 401 before any DB access.
+  \item \textbf{Controller:} validates payload, delegates persistence to Mongoose.
+  \item \textbf{Mongoose/MongoDB:} writes the document, returns it with \texttt{\_id}.
+  \item \textbf{Response:} controller always replies \texttt{\{ success, data \}} (Chapter 8).
+  \item \textbf{Frontend update:} resolved data is pushed into state; list re-renders.
+\end{enumerate}
+
+\begin{tipbox}[TIP]
+When debugging, walk this chain link by link -- most bugs are a mismatch
+between two adjacent links (wrong URL, wrong field name, missing
+\texttt{await}, wrong HTTP method).
+\end{tipbox}

@@ -1,0 +1,84 @@
+\chapter{Creating a MERN Project}
+
+A MERN project is two independent Node.js projects side by side: a
+Vite-powered React frontend and an Express backend, talking only over HTTP.
+
+\begin{diagrambox}[Project Layout]
+\begin{verbatim}
+my-app/
+|-- frontend/   (Vite + React, :5173)
+|-- backend/    (Express + MongoDB, :5000)
+\end{verbatim}
+\end{diagrambox}
+
+\section{Scaffolding the Frontend}
+
+\begin{lstlisting}[language=bash]
+mkdir my-app && cd my-app
+npm create vite@latest frontend -- --template react
+cd frontend
+npm install
+npm run dev
+\end{lstlisting}
+
+This gives a working React app with hot reload. We restructure \texttt{src/}
+in Chapter 3 and add the Axios API layer in Chapter 7.
+
+\section{Scaffolding the Backend}
+
+\begin{lstlisting}[language=bash]
+cd my-app
+mkdir backend && cd backend
+npm init -y
+npm install express mongoose dotenv cors cookie-parser bcryptjs jsonwebtoken
+npm install -D nodemon
+\end{lstlisting}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Package} & \textbf{Purpose} \\
+\midrule
+\texttt{express} & HTTP server framework -- routing, middleware \\
+\texttt{mongoose} & ODM mapping JS schemas to MongoDB collections \\
+\texttt{dotenv} & Loads env vars from \texttt{.env} \\
+\texttt{cors} & Enables cross-origin requests from frontend \\
+\texttt{cookie-parser} & Parses \texttt{Cookie} header for JWT \\
+\texttt{bcryptjs} & Hashes/compares passwords \\
+\texttt{jsonwebtoken} & Issues/verifies JWTs \\
+\texttt{nodemon} (dev) & Auto-restarts server on file changes \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{lstlisting}[language=JavaScript]
+// backend/server.js
+const express = require("express");
+const cors = require("cors");
+const cookieParser = require("cookie-parser");
+require("dotenv").config();
+
+const app = express();
+
+app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+app.use(express.json());
+app.use(cookieParser());
+
+app.get("/api/health", (req, res) => {
+  res.json({ success: true, message: "API is running" });
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+\texttt{MONGO\_URI}, \texttt{JWT\_SECRET}, \texttt{PORT}, \texttt{CLIENT\_URL} belong in a
+git-ignored \texttt{.env} file. Mongoose connection setup is in Chapter 9.
+\end{notebox}
+
+\begin{tipbox}[TIP]
+Add \texttt{"dev": "nodemon server.js"} and \texttt{"start": "node server.js"} to
+\texttt{package.json} scripts now.
+\end{tipbox}

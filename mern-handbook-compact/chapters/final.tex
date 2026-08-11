@@ -1,0 +1,189 @@
+\chapter*{Final Revision: MERN Project-Building Cheat Sheet}
+\addcontentsline{toc}{chapter}{Final Revision: MERN Project-Building Cheat Sheet}
+
+\begin{notebox}[NOTE]
+Rapid recap of the whole book, terse by design --- unclear lines are explained in the chapter they summarize.
+\end{notebox}
+
+\section*{Page 1: MERN Architecture + Folder Structure}
+
+\begin{diagrambox}[Layered Architecture]
+\begin{verbatim}
+Browser (React)
+   | Axios (HTTPS)
+Express App (app.js)
+   | Router -> Middleware -> Controller
+Service Layer (business logic)
+   | Mongoose
+MongoDB Atlas
+\end{verbatim}
+\end{diagrambox}
+
+\begin{diagrambox}[Combined Project Tree]
+\begin{verbatim}
+frontend/src/{components,pages,layouts,hooks,context,api,utils}
+backend/src/{config,controllers,middleware,models,routes,
+             services,validators,utils}
+backend/{app.js,server.js}
+\end{verbatim}
+\end{diagrambox}
+
+\newpage
+\section*{Page 2: Frontend to Backend API Communication}
+
+\begin{diagrambox}[Full Request/Response Chain]
+\begin{verbatim}
+React event -> api.get('/tasks') -> Express route -> middleware(s)
+  -> controller -> service -> Mongoose -> MongoDB
+MongoDB -> Mongoose -> service -> controller -> res.json()
+  -> Axios response -> setState -> re-render
+\end{verbatim}
+\end{diagrambox}
+
+\begin{lstlisting}[language=JavaScript]
+// frontend: src/api/tasks.js
+export const getTasks = () => api.get("/tasks");
+
+// backend: routes/taskRoutes.js
+router.get("/tasks", protect, getTasks);
+
+// backend: controllers/taskController.js
+const getTasks = async (req, res) => {
+  const tasks = await Task.find({ user: req.user._id });
+  res.status(200).json(tasks);
+};
+\end{lstlisting}
+
+\newpage
+\section*{Page 3: Express + MongoDB + Mongoose}
+
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}p{4.3cm}X@{}}
+\toprule
+Method & Purpose \\
+\midrule
+app.use/get/post/put/patch/delete & Middleware + route handlers per verb \\
+req.params/query/body & Route params / query string / parsed body \\
+res.status().json() & Send status + JSON body \\
+Schema / model() & Define shape, compile to Model \\
+find/findOne/findById & Read one or many docs \\
+create/save & Insert or persist a doc \\
+findByIdAndUpdate/Delete & Update/delete by id \\
+populate/sort/limit/skip & Join refs, order, paginate \\
+\bottomrule
+\end{tabularx}
+
+\begin{lstlisting}[language=JavaScript]
+// config/db.js
+const connectDB = async () => {
+  await mongoose.connect(process.env.MONGO_URI);
+  console.log("MongoDB connected");
+};
+
+// app.js
+const app = express();
+app.use(express.json());
+app.use(cors({ origin: process.env.FRONTEND_URL, credentials: true }));
+app.use("/api/tasks", taskRoutes);
+app.use(errorHandler);
+
+// server.js
+connectDB().then(() =>
+  app.listen(process.env.PORT, () => console.log("Server running"))
+);
+\end{lstlisting}
+
+\newpage
+\section*{Page 4: Authentication + JWT + Cookies + OAuth}
+
+\begin{diagrambox}[Auth Flow]
+\begin{verbatim}
+Register -> bcrypt.hash -> save user
+Login -> bcrypt.compare -> jwt.sign -> Set-Cookie (HttpOnly)
+Protected request -> cookie sent automatically -> protect middleware
+  -> jwt.verify -> req.user set -> controller
+\end{verbatim}
+\end{diagrambox}
+
+\begin{lstlisting}[language=JavaScript]
+// register/login (controller)
+const hashed = await bcrypt.hash(password, 10);
+const match = await bcrypt.compare(password, user.password);
+const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+  expiresIn: "7d",
+});
+res.cookie("token", token, {
+  httpOnly: true, secure: true, sameSite: "none",
+});
+
+// middleware/protect.js
+const protect = async (req, res, next) => {
+  const token = req.cookies.token;
+  if (!token) return res.status(401).json({ message: "Not authorized" });
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  req.user = await User.findById(decoded.id);
+  next();
+};
+\end{lstlisting}
+
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}p{3cm}X@{}}
+\toprule
+Cookie Option & Meaning \\
+\midrule
+httpOnly & Blocks JS access to cookie (XSS mitigation) \\
+secure & HTTPS-only transmission \\
+sameSite & \texttt{none} (cross-domain, needs \texttt{secure}) or
+\texttt{lax} (same-site default) \\
+\bottomrule
+\end{tabularx}
+
+Google OAuth in one line: frontend $\to$ Google $\to$ backend callback with a code $\to$ backend exchanges code for profile $\to$ creates/finds user, issues its own JWT cookie like a normal login.
+
+\newpage
+\section*{Page 5: Errors, Debugging, Deployment, Production Checklist}
+
+\textbf{Debugging order:} Console error $\to$ Network tab (status + response) $\to$ backend stack trace $\to$ fix the first line in your own code.
+
+\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{3cm}X@{}}
+\toprule
+Top Frontend Errors & Fix \\
+\midrule
+CORS error & Backend \texttt{cors()} needs matching origin + credentials \\
+Network Error & Backend down / wrong URL / wrong port \\
+404 on API call & Path typo or route not mounted \\
+Cannot read '...' of undefined & Guard render until data has loaded \\
+Env var undefined & Missing \texttt{VITE\_} prefix or dev server not
+restarted \\
+\bottomrule
+\end{tabularx}
+
+\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{3cm}X@{}}
+\toprule
+Top Backend Errors & Fix \\
+\midrule
+EADDRINUSE & Kill the process on that port or change \texttt{PORT} \\
+Mongo connection failed & Check URI, credentials, Atlas IP allowlist \\
+req.body undefined & Add \texttt{express.json()} before routes \\
+req.user undefined & Add \texttt{protect} middleware to the route \\
+E11000 duplicate key & Unique index violation, handle in controller \\
+\bottomrule
+\end{tabularx}
+
+\begin{diagrambox}[Deployment Flow]
+\begin{verbatim}
+User -> Frontend Hosting -HTTPS-> Backend API -> MongoDB Atlas
+\end{verbatim}
+\end{diagrambox}
+
+\textbf{Production checklist (condensed):}
+\begin{itemize}
+\item[$\square$] Env vars set on platform, none committed
+\item[$\square$] CORS origin = real frontend domain, HTTPS enabled
+\item[$\square$] Secure cookies (\texttt{httpOnly}, \texttt{secure},
+\texttt{sameSite})
+\item[$\square$] Auth + authorization tested against deployed URLs
+\item[$\square$] Validation, error handling, rate limiting enabled
+\item[$\square$] Frontend built with production API URL; backend started
+with \texttt{npm start}
+\item[$\square$] All CRUD tested; loading/error/empty states present
+\item[$\square$] Mobile responsive checked
+\end{itemize}

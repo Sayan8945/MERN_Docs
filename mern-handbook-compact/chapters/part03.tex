@@ -1,0 +1,53 @@
+\chapter{React Project Structure}
+
+A flat \texttt{src/} folder works for a demo, but breaks down once an app has
+auth, protected routes, and multiple pages. Here is the structure used
+throughout this book for the Task Management System.
+
+\begin{diagrambox}[frontend/src Structure]
+\begin{verbatim}
+frontend/src/
+|-- api/axios.js          (single configured axios instance)
+|-- services/             authService.js, taskService.js
+|-- components/           TaskCard.jsx, TaskList.jsx, Navbar.jsx
+|-- pages/                Dashboard.jsx, Login.jsx, TaskDetails.jsx
+|-- layouts/MainLayout.jsx (Navbar + Sidebar + <Outlet/>)
+|-- hooks/useAuth.js
+|-- context/AuthContext.jsx
+|-- utils/formatDate.js
+|-- assets/logo.svg
+|-- App.jsx
+`-- main.jsx
+\end{verbatim}
+\end{diagrambox}
+
+\section{What Goes Where}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{Folder} & \textbf{Contains} & \textbf{Should NOT contain} \\
+\midrule
+\texttt{components/} & Reusable UI pieces & Routes, data fetching \\
+\texttt{pages/} & Route-level screens & Shared low-level UI \\
+\texttt{layouts/} & Shell wrapping pages & Feature-specific logic \\
+\texttt{hooks/} & Reusable stateful logic & JSX markup \\
+\texttt{context/} & Global providers/state & One-off local state \\
+\texttt{services/} & Resource-specific API calls & Raw axios config, JSX \\
+\texttt{api/} & Axios instance, interceptors & Resource business logic \\
+\texttt{utils/} & Pure helper functions & Components, hooks \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{notebox}[NOTE]
+\texttt{api/axios.js} is generic HTTP plumbing; \texttt{services/taskService.js}
+knows the specific endpoints. This split means a backend URL change never
+touches business logic.
+\end{notebox}
+
+\begin{tipbox}[TIP]
+Quick test: needs its own route in \texttt{App.jsx}? It's a page. Used in two
+or more pages? It's a component.
+\end{tipbox}

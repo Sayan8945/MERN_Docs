@@ -1,0 +1,76 @@
+\chapter{Production Checklist}
+
+\begin{notebox}[NOTE]
+Run through this list before calling a MERN app "done." Each item links
+back to the chapter where it was implemented in detail.
+\end{notebox}
+
+\section{Backend}
+
+\begin{itemize}
+\item[$\square$] Environment variables configured on the hosting
+platform, none committed to the repository (Chapter 44)
+\item[$\square$] Backend production start command is \texttt{npm start}
+running \texttt{node src/server.js}, not \texttt{nodemon} (Chapter 44)
+\item[$\square$] CORS configured with the exact production frontend
+origin and \texttt{credentials: true} (Chapter 26, 44)
+\item[$\square$] Authentication tested end to end: register, login,
+logout, current user (Chapters 16--20)
+\item[$\square$] Authorization tested: role-restricted routes reject the
+wrong role with \texttt{403} (Chapter 21)
+\item[$\square$] Validation enabled on every write endpoint (Chapter 23)
+\item[$\square$] Centralized error handling middleware enabled, no raw
+stack traces leaked to clients (Chapter 24/36)
+\item[$\square$] Rate limiting enabled on auth and public-facing routes
+(Chapter 37)
+\item[$\square$] File upload size/type limits enforced on Multer config
+(Chapter 27, 37)
+\item[$\square$] All CRUD APIs tested with Postman/Thunder Client
+(Chapter 14)
+\end{itemize}
+
+\section{Frontend}
+
+\begin{itemize}
+\item[$\square$] Frontend production build (\texttt{npm run build}) run
+\emph{after} setting the production \texttt{VITE\_API\_URL} (Chapter 44)
+\item[$\square$] API URLs updated to point at the deployed backend, no
+hardcoded \texttt{localhost} left in code (Chapter 41, 44)
+\item[$\square$] Mobile responsive layouts checked at \texttt{sm}/\texttt{md}/\texttt{lg}
+breakpoints (Chapter 35)
+\item[$\square$] Loading states shown for every async fetch, no blank
+screens while waiting (Chapter 33)
+\item[$\square$] Error states shown when a request fails, not a silent
+blank page (Chapter 33, 36)
+\item[$\square$] Empty states shown when a list legitimately has zero
+items, distinct from a loading or error state (Chapter 33)
+\end{itemize}
+
+\section{Database}
+
+\begin{itemize}
+\item[$\square$] MongoDB production database is a separate Atlas cluster
+from any dev/test database (Chapter 12, 44)
+\item[$\square$] Database connection tested against the production
+\texttt{MONGO\_URI} before first deploy (Chapter 12, 44)
+\item[$\square$] Network Access allowlist configured (\texttt{0.0.0.0/0}
+or specific host IPs) (Chapter 44)
+\end{itemize}
+
+\section{Security}
+
+\begin{itemize}
+\item[$\square$] HTTPS enabled on both frontend and backend domains
+(Chapter 44)
+\item[$\square$] Secure cookies: \texttt{httpOnly}, \texttt{secure: true},
+\texttt{sameSite} set correctly for the deployment topology (Chapter 19)
+\item[$\square$] Authentication and authorization re-tested against the
+\emph{deployed} URLs, not just localhost (Chapter 20, 21, 43)
+\end{itemize}
+
+\begin{tipbox}[TIP]
+Treat this checklist as a gate, not a suggestion --- a single unchecked
+box (most often "CORS configured" or "environment variables configured")
+is responsible for the majority of "it worked locally but broke in
+production" incidents.
+\end{tipbox}

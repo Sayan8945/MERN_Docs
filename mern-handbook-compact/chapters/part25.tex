@@ -1,0 +1,42 @@
+\chapter{HTTP Status Codes Reference}
+
+\section{Why Status Codes Matter}
+
+The HTTP status code tells the frontend whether a request succeeded, failed
+due to client error, or failed on the server, before it even reads the
+response body. Returning \texttt{200 OK} for everything forces every caller
+to re-implement its own error detection, whereas consistent codes make
+\texttt{axios} interceptors and global error handlers (Chapter~17) possible.
+
+\section{Reference Table}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\textbf{Code} & \textbf{Meaning} & \textbf{Typical MERN Usage} \\
+\midrule
+200 & OK & Successful \texttt{GET}. \\
+201 & Created & Resource created via \texttt{POST}. \\
+400 & Bad Request & Malformed request or bad JSON. \\
+401 & Unauthorized & Missing/invalid/expired auth. \\
+403 & Forbidden & Authenticated but not permitted. \\
+404 & Not Found & Resource doesn't exist. \\
+409 & Conflict & Duplicate data (e.g.\ email taken). \\
+422 & Unprocessable Entity & Fails validation rules. \\
+500 & Internal Server Error & Unexpected backend failure. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{notebox}[NOTE]
+Some teams use \texttt{400} for all validation failures instead of
+\texttt{422}; this book uses \texttt{400} for malformed requests and
+\texttt{422} for schema/validation errors.
+\end{notebox}
+
+\begin{warnbox}[WARNING]
+Never return \texttt{200 OK} with an \texttt{\{ "error": "..." \}} body ---
+it breaks frontend code relying on \texttt{response.ok} or axios's
+non-2xx rejection.
+\end{warnbox}

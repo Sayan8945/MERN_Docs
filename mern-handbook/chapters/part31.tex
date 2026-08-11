@@ -1,0 +1,143 @@
+\chapter{MongoDB Aggregation}
+
+\section{The Pipeline Concept}
+
+An aggregation pipeline processes documents through a sequence of stages,
+each one transforming the output of the previous stage. Unlike
+\texttt{.find()}, which returns matching documents as-is, aggregation can
+reshape, group, and compute across documents --- exactly what's needed for
+dashboard statistics.
+
+\begin{diagrambox}[Aggregation Pipeline]
+\begin{verbatim}
+Task collection
+      |
+      v
+  $match   --> filter documents (like a WHERE clause)
+      |
+      v
+  $group   --> bucket documents and compute per-bucket values
+      |
+      v
+  $sort    --> order the grouped results
+      |
+      v
+  $project --> reshape the output fields
+      |
+      v
+  Final result array
+\end{verbatim}
+\end{diagrambox}
+
+\section{Dashboard Stats Endpoint}
+
+\texttt{GET /api/tasks/stats} needs: total task count, completed count,
+pending count, and a breakdown of tasks per user. This maps to two separate
+\texttt{\$group} stages in one pipeline.
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/controllers/task.controller.js
+const Task = require("../models/Task");
+
+const getTaskStats = async (req, res, next) => {
+  try {
+    const statusCounts = await Task.aggregate([
+      // Stage 1: only this user's tasks (skip if stats are app-wide)
+      { $match: { owner: req.user.id } },
+
+      // Stage 2: group by status, counting documents in each group
+      {
+        $group: {
+          _id: "$status",
+          count: { $sum: 1 },
+        },
+      },
+
+      // Stage 3: alphabetical by status for a stable response order
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Reshape [{ _id: "completed", count: 5 }, ...] into a flat object
+    const summary = { total: 0, completed: 0, pending: 0, "in-progress": 0 };
+    statusCounts.forEach(({ _id, count }) => {
+      summary[_id] = count;
+      summary.total += count;
+    });
+
+    const perUser = await Task.aggregate([
+      {
+        $group: {
+          _id: "$owner",
+          taskCount: { $sum: 1 },
+        },
+      },
+      // Join back to the users collection to attach a readable name
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "user",
+        },
+      },
+      { $unwind: "$user" },
+      {
+        $project: {
+          _id: 0,
+          userId: "$_id",
+          name: "$user.name",
+          taskCount: 1,
+        },
+      },
+      { $sort: { taskCount: -1 } },
+    ]);
+
+    res.status(200).json({ summary, perUser });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getTaskStats };
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+\texttt{\$lookup} performs a join against another collection --- here,
+pulling in each owner's \texttt{name} from the \texttt{users} collection so
+the response doesn't just show raw \texttt{ObjectId}s. It plays the same
+role that \texttt{.populate()} plays in a normal Mongoose query, but inside
+an aggregation pipeline \texttt{.populate()} itself isn't available, so
+\texttt{\$lookup} is the aggregation-native equivalent.
+\end{notebox}
+
+\subsection{Example Output}
+
+\begin{lstlisting}[language=JavaScript]
+{
+  "summary": {
+    "total": 45,
+    "completed": 20,
+    "pending": 15,
+    "in-progress": 10
+  },
+  "perUser": [
+    { "userId": "64f...a1", "name": "Asha Patel", "taskCount": 18 },
+    { "userId": "64f...b2", "name": "Ravi Kumar", "taskCount": 15 },
+    { "userId": "64f...c3", "name": "Meera Nair", "taskCount": 12 }
+  ]
+}
+\end{lstlisting}
+
+\section{Route Wiring}
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/routes/task.routes.js
+router.get("/stats", protect, getTaskStats);
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+Aggregation stages run in the order you list them, and \texttt{\$match}
+stages placed early narrow down the working set before the more expensive
+\texttt{\$group}/\texttt{\$lookup} stages run --- put filters as close to the
+top of the pipeline as possible.
+\end{tipbox}

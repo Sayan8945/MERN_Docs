@@ -1,0 +1,113 @@
+\chapter{Frontend Error Boundaries}
+
+Not every frontend error is an API error. A malformed prop or an
+\texttt{undefined.map()} crashes the entire React tree to a blank screen
+unless something catches it --- that's an Error Boundary.
+
+\section{Render Errors vs. API Errors}
+
+\begin{warnbox}[WARNING]
+Error Boundaries only catch errors during rendering, lifecycle methods, and
+constructors below them --- not event handlers, async code, or
+\texttt{fetch}/\texttt{axios} calls. API failures still use the
+try/catch + \texttt{error} state pattern from Chapter~33.
+\end{warnbox}
+
+\begin{diagrambox}[What Each Mechanism Catches]
+\begin{verbatim}
+ Error type                        | Caught by
+ -----------------------------------|---------------------------
+ Render crash (bad prop, null)      | Error Boundary
+ API call fails (network, 4xx/5xx)  | try/catch + error state (Ch.33)
+ Error inside onClick/onSubmit      | Local try/catch in the handler
+\end{verbatim}
+\end{diagrambox}
+
+\section{Building an ErrorBoundary}
+
+Error Boundaries must be class components --- no hook equivalent exists for
+\texttt{getDerivedStateFromError}/\texttt{componentDidCatch}.
+
+\begin{lstlisting}[language=JavaScript]
+// components/ErrorBoundary.jsx
+import { Component } from "react";
+
+class ErrorBoundary extends Component {
+  state = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }; // render phase, no side effects here
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary caught:", error, errorInfo); // log here instead
+  }
+
+  handleReset = () => this.setState({ hasError: false, error: null });
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 text-center">
+          <h2 className="text-lg font-semibold text-red-600 mb-2">Something went wrong.</h2>
+          <p className="text-sm text-gray-600 mb-4">{this.state.error?.message}</p>
+          <button onClick={this.handleReset} className="px-4 py-2 bg-blue-600 text-white rounded">
+            Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default ErrorBoundary;
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+\texttt{getDerivedStateFromError} is static and side-effect free;
+\texttt{componentDidCatch} runs after render and is where you log to
+Sentry/LogRocket/your own endpoint.
+\end{notebox}
+
+\section{Wrapping the App}
+
+Wrap independent sections rather than the whole app, so a crash in one
+widget doesn't take down the navbar too.
+
+\begin{lstlisting}[language=JavaScript]
+// App.jsx
+function App() {
+  return (
+    <BrowserRouter>
+      <ErrorBoundary><Navbar /></ErrorBoundary>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/tasks" element={<TaskListPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+        </Routes>
+      </ErrorBoundary>
+    </BrowserRouter>
+  );
+}
+export default App;
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+Granular boundaries (per route/widget) contain crash damage; one app-wide
+boundary turns any bug into a full-page failure with no escape route.
+\end{tipbox}
+
+\section{Error Boundaries Do Not Replace API Error Handling}
+
+Wrapping a component in an \texttt{ErrorBoundary} does nothing for a failed
+\texttt{axios} call in its \texttt{useEffect} --- that rejection happens
+outside React's render cycle. Every data-fetching component still needs
+its own loading/error/retry handling (Chapter~33); boundaries are a last
+line of defense against render crashes, not a substitute for expected
+failure modes.
+
+\whatwhyhow
+{A class-based ErrorBoundary uses \texttt{getDerivedStateFromError} and \texttt{componentDidCatch} to catch render/lifecycle errors and show a fallback UI instead of a blank screen.}
+{Uncaught render errors crash the whole tree with no recovery; async/API errors are invisible to boundaries and need separate handling.}
+{Wrap independent sections (navbar, routes, risky widgets) in their own \texttt{<ErrorBoundary>}, and keep try/catch plus loading/error state (Chapter~33) for API calls.}

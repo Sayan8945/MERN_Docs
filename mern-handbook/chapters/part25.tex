@@ -1,0 +1,52 @@
+\chapter{HTTP Status Codes Reference}
+
+\section{Why Status Codes Matter}
+
+The HTTP status code is the first thing the frontend looks at before it even
+touches the response body. A consistent status-code contract lets the React
+layer make one decision early --- ``was this a success, a client mistake, or a
+server failure?'' --- and route the response accordingly: show data, show a
+field-level validation message, redirect to login, or show a generic error
+toast. When an API returns \texttt{200 OK} for everything (including errors
+buried in the JSON body), every component that calls it has to re-implement
+its own ad-hoc error detection. Picking the right code per situation, and
+using it consistently across every controller, is what makes
+\texttt{axios} interceptors and global error handlers (Chapter~17) possible
+in the first place.
+
+\section{Reference Table}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\textbf{Code} & \textbf{Meaning} & \textbf{Typical MERN Usage} \\
+\midrule
+200 & OK & Successful \texttt{GET} request; data returned in the body. \\
+201 & Created & Successful \texttt{POST} request; a new resource (task, user) was created. \\
+400 & Bad Request & Malformed request --- missing required field, invalid ID format, bad JSON. \\
+401 & Unauthorized & Missing, expired, or invalid JWT/session; user is not logged in. \\
+403 & Forbidden & User is authenticated but lacks permission (e.g.\ not the task owner, not an admin). \\
+404 & Not Found & Requested resource (task, user, route) does not exist. \\
+409 & Conflict & Duplicate data --- e.g.\ registering with an email that already exists. \\
+422 & Unprocessable Entity & Request is well-formed but fails validation rules (bad email format, password too short). \\
+500 & Internal Server Error & Unexpected backend failure --- DB connection lost, unhandled exception. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{notebox}[NOTE]
+Many teams use \texttt{400} for \emph{all} validation failures instead of
+\texttt{422}, and that is a perfectly valid convention too. What matters is
+picking one rule and applying it everywhere --- the Task Management System
+in this book uses \texttt{400} for malformed requests and \texttt{422}
+specifically for schema/validation errors raised by \texttt{express-validator}
+or Mongoose validators.
+\end{notebox}
+
+\begin{warnbox}[WARNING]
+Never return \texttt{200 OK} with an \texttt{\{ "error": "..." \}} body for a
+failed operation. It silently breaks any frontend code that checks
+\texttt{response.ok} or relies on axios's automatic rejection of non-2xx
+responses.
+\end{warnbox}

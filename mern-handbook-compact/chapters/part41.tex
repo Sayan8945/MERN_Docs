@@ -1,0 +1,117 @@
+\chapter{Common Frontend Errors}
+
+\begin{notebox}[NOTE]
+Reference chapter: each entry gives \textbf{Cause}, \textbf{Identify}, \textbf{Solution}.
+\end{notebox}
+
+\subsubsection*{CORS Error}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Backend response missing \texttt{Access-Control-Allow-Origin} for the frontend's origin. \\
+Identify & Console: "blocked by CORS policy"; Network tab shows response refused. \\
+Solution & Add \texttt{cors(\{ origin: FRONTEND\_URL, credentials: true \})} on backend (Ch. 26). \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Network Error}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Request never reached a server --- backend down, wrong port, or no internet. \\
+Identify & Axios error has \texttt{error.request} but no \texttt{response}; Network shows "failed". \\
+Solution & Confirm backend is running, check URL/port, verify \texttt{VITE\_API\_URL}. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{404 on API Call}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Frontend calls a path that doesn't exist on backend (typo, wrong prefix, unmounted route). \\
+Identify & Network tab shows \texttt{404} with a response body (server did respond). \\
+Solution & Compare path against \texttt{app.use('/api/...')} and router definitions. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{"Failed to fetch"}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Generic browser message --- server down, CORS preflight failure, or mixed HTTP/HTTPS. \\
+Identify & Thrown before any response; check Network tab for the real underlying reason. \\
+Solution & Fix the underlying cause shown in Network tab --- message alone isn't diagnostic. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{"Cannot read properties of undefined (reading 'x')"}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Rendering \texttt{data.x} before \texttt{data} arrives from the API. \\
+Identify & Error points to the exact line; happens on first render, gone after fetch resolves. \\
+Solution & Default state to \texttt{[]}/\texttt{null}; guard with \texttt{data?.x} or a loading return. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{State Not Updating (Stale Closures)}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Callback/effect captured an old state value from a previous render. \\
+Identify & Logged state inside a handler shows a value from several renders ago. \\
+Solution & Use updater form (\texttt{setCount(c => c + 1)}) or add value to dependency array. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{useEffect Infinite Loop}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Effect updates state that's also its dependency, or depends on a new object each render. \\
+Identify & Same request fires repeatedly in Network tab; browser becomes sluggish. \\
+Solution & Remove the unstable dependency, or wrap it in \texttt{useMemo}/\texttt{useCallback}. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Duplicate API Calls}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & \texttt{React.StrictMode} double-invokes effects in dev, or a missing dependency re-fires. \\
+Identify & Two identical requests per load; dev-only (StrictMode) or also in prod (real bug). \\
+Solution & Dev-only: ignore, it's expected. Also in prod: fix the dependency array. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{React Key Warning}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & \texttt{.map()} list missing a \texttt{key} prop, or duplicate keys (index after reorder). \\
+Identify & Console: "Each child in a list should have a unique key prop." \\
+Solution & Use a stable unique value, e.g. \texttt{task.\_id}, never index for reorderable lists. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Component Not Rendering}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & A conditional evaluates falsy unexpectedly, or the component isn't mounted at all. \\
+Identify & No console error --- component simply missing; DevTools shows it absent from tree. \\
+Solution & Log the condition's value right before the branch; confirm parent renders this child. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Wrong API URL}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & \texttt{VITE\_API\_URL} unset, or trailing slash doubles with a leading slash. \\
+Identify & Request URL shows \texttt{undefined/api/tasks} or \texttt{//api/tasks}. \\
+Solution & Set \texttt{VITE\_API\_URL} in \texttt{.env} without trailing slash; build paths carefully. \\
+\bottomrule
+\end{tabularx}
+
+\subsubsection*{Environment Variable Undefined}
+\noindent\begin{tabularx}{\textwidth}{@{}>{\bfseries}p{2.3cm}X@{}}
+\toprule
+Cause & Vite only exposes \texttt{VITE\_}-prefixed vars; or dev server started before \texttt{.env} edit. \\
+Identify & \texttt{import.meta.env.VITE\_API\_URL} logs \texttt{undefined} despite existing in \texttt{.env}. \\
+Solution & Prefix with \texttt{VITE\_} and restart \texttt{npm run dev} --- no hot-reload for \texttt{.env}. \\
+\bottomrule
+\end{tabularx}
+
+\begin{tipbox}[TIP]
+Diagnose all of these the same way: Console tab for the message, then Network tab for the request/response.
+\end{tipbox}

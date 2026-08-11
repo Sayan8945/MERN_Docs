@@ -1,0 +1,101 @@
+\chapter{MERN Quick Reference}
+
+\begin{notebox}[NOTE]
+Dense cheat tables --- method, one-line purpose. See referenced chapters for detail.
+\end{notebox}
+
+\section{Express}
+
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}p{4cm}X@{}}
+\toprule
+Method & Purpose \\
+\midrule
+app.use() & Register middleware/router for all or a prefixed path \\
+app.get() & Handle GET requests on a path \\
+app.post() & Handle POST requests on a path \\
+app.put() & Handle PUT (full replace) requests \\
+app.patch() & Handle PATCH (partial update) requests \\
+app.delete() & Handle DELETE requests \\
+Router() & Create a modular, mountable route handler \\
+req.params & Named route segments (\texttt{/tasks/:id}) \\
+req.query & URL query string values (\texttt{?status=done}) \\
+req.body & Parsed request body (needs \texttt{express.json()}) \\
+req.headers & Raw request headers \\
+res.json() & Send a JSON response body \\
+res.status() & Set the HTTP status code before sending \\
+\bottomrule
+\end{tabularx}
+
+\section{Mongoose}
+
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}p{4cm}X@{}}
+\toprule
+Method & Purpose \\
+\midrule
+Schema & Define document shape, types, and validation rules \\
+model() & Compile a Schema into a usable Model \\
+find() & Query multiple documents matching a filter \\
+findOne() & Query the first document matching a filter \\
+findById() & Query a document by its \texttt{\_id} \\
+create() & Insert a new document \\
+save() & Persist changes on a document instance \\
+updateOne() & Update the first matching document, no hooks \\
+findByIdAndUpdate() & Find by id and update in one call \\
+deleteOne() & Delete the first matching document \\
+findByIdAndDelete() & Find by id and delete in one call \\
+populate() & Replace a referenced \texttt{\_id} with the full document \\
+aggregate() & Run a multi-stage data pipeline \\
+sort() & Order query results \\
+limit() & Cap the number of returned documents \\
+skip() & Offset results (used with \texttt{limit} for pagination) \\
+\bottomrule
+\end{tabularx}
+
+\section{React}
+
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}p{4cm}X@{}}
+\toprule
+Hook & Purpose \\
+\midrule
+useState & Local component state \\
+useEffect & Run side effects after render (fetches, subscriptions) \\
+useContext & Read a value from a Context Provider \\
+useRef & Persist a mutable value without triggering re-renders \\
+useMemo & Cache an expensive computed value between renders \\
+useCallback & Cache a function reference between renders \\
+\bottomrule
+\end{tabularx}
+
+\section{Axios}
+
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}p{4cm}X@{}}
+\toprule
+Call & Purpose \\
+\midrule
+api.get() & Fetch data \\
+api.post() & Create a resource \\
+api.put() & Replace a resource \\
+api.patch() & Partially update a resource \\
+api.delete() & Remove a resource \\
+interceptors & Run logic before every request/response (attach headers, handle 401) \\
+baseURL & Shared root URL for all calls from one instance \\
+withCredentials & Include cookies on cross-origin requests \\
+\bottomrule
+\end{tabularx}
+
+\section{Authentication}
+
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}p{4cm}X@{}}
+\toprule
+Concept & Purpose \\
+\midrule
+bcrypt & One-way password hashing before storage \\
+JWT & Signed token proving identity without a server-side session store \\
+cookie & Transport mechanism for delivering the JWT to the browser \\
+HttpOnly & Cookie flag blocking JavaScript access (XSS mitigation) \\
+Secure & Cookie flag restricting transmission to HTTPS \\
+SameSite & Cookie flag controlling cross-site sending behavior \\
+middleware & Function that runs before the controller (e.g. \texttt{protect}) \\
+authorization & Role/permission check run after authentication succeeds \\
+\bottomrule
+\end{tabularx}

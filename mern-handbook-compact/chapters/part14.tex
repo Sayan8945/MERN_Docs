@@ -1,0 +1,217 @@
+\chapter{Complete CRUD: The Task Resource End to End}
+
+This chapter wires Chapters 9-13 into a full CRUD feature for the Task resource: model, routes, controller, service, and the React pieces that consume the API.
+
+\section{Backend: Routes}
+
+\begin{lstlisting}[language=JavaScript]
+// routes/task.routes.js
+const express = require("express");
+const { createTask, getTasks, getTaskById, updateTask, deleteTask } = require("../controllers/task.controller");
+const { protect } = require("../middleware/auth.middleware");
+const router = express.Router();
+
+router.use(protect);
+router.post("/", createTask);
+router.get("/", getTasks);
+router.get("/:id", getTaskById);
+router.put("/:id", updateTask);
+router.delete("/:id", deleteTask);
+module.exports = router;
+\end{lstlisting}
+
+\section{Backend: Service Layer}
+
+\begin{lstlisting}[language=JavaScript]
+// services/task.service.js
+const Task = require("../models/Task");
+
+const notFound = () => { const e = new Error("Task not found"); e.statusCode = 404; throw e; };
+
+const createTask = async (data, userId) => Task.create({ ...data, user: userId });
+
+const getTasks = async (userId, { page = 1, limit = 10, status }) => {
+  const filter = { user: userId, ...(status && { status }) };
+  const tasks = await Task.find(filter)
+    .sort({ createdAt: -1 })
+    .skip((Number(page) - 1) * Number(limit))
+    .limit(Number(limit));
+  const total = await Task.countDocuments(filter);
+  return { tasks, total, page: Number(page), limit: Number(limit) };
+};
+
+const getTaskById = async (id, userId) => {
+  const task = await Task.findOne({ _id: id, user: userId });
+  if (!task) notFound();
+  return task;
+};
+
+const updateTask = async (id, userId, data) => {
+  const task = await Task.findOneAndUpdate({ _id: id, user: userId }, data, { new: true, runValidators: true });
+  if (!task) notFound();
+  return task;
+};
+
+const deleteTask = async (id, userId) => {
+  const task = await Task.findOneAndDelete({ _id: id, user: userId });
+  if (!task) notFound();
+  return task;
+};
+
+module.exports = { createTask, getTasks, getTaskById, updateTask, deleteTask };
+\end{lstlisting}
+
+\section{Backend: Controller}
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/task.controller.js
+const taskService = require("../services/task.service");
+
+const createTask = async (req, res, next) => {
+  try { res.status(201).json(await taskService.createTask(req.body, req.user.id)); }
+  catch (err) { next(err); }
+};
+
+const getTasks = async (req, res, next) => {
+  try { res.status(200).json(await taskService.getTasks(req.user.id, req.query)); }
+  catch (err) { next(err); }
+};
+
+const getTaskById = async (req, res, next) => {
+  try { res.status(200).json(await taskService.getTaskById(req.params.id, req.user.id)); }
+  catch (err) { next(err); }
+};
+
+const updateTask = async (req, res, next) => {
+  try { res.status(200).json(await taskService.updateTask(req.params.id, req.user.id, req.body)); }
+  catch (err) { next(err); }
+};
+
+const deleteTask = async (req, res, next) => {
+  try {
+    await taskService.deleteTask(req.params.id, req.user.id);
+    res.status(200).json({ message: "Task deleted" });
+  } catch (err) { next(err); }
+};
+
+module.exports = { createTask, getTasks, getTaskById, updateTask, deleteTask };
+\end{lstlisting}
+
+\section{Frontend: taskService.js}
+
+\begin{lstlisting}[language=JavaScript]
+// src/services/taskService.js
+import api from "./api"; // preconfigured axios instance with baseURL + credentials
+
+export const fetchTasks = (params) => api.get("/tasks", { params });
+export const fetchTaskById = (id) => api.get(`/tasks/${id}`);
+export const createTask = (data) => api.post("/tasks", data);
+export const updateTask = (id, data) => api.put(`/tasks/${id}`, data);
+export const deleteTask = (id) => api.delete(`/tasks/${id}`);
+\end{lstlisting}
+
+\section{Frontend: TaskForm.jsx}
+
+\begin{lstlisting}[language=JavaScript]
+import { useState } from "react";
+import { createTask, updateTask } from "../services/taskService";
+
+const initialState = { title: "", description: "", status: "todo", priority: "medium", dueDate: "" };
+
+const TaskForm = ({ existingTask, onSaved }) => {
+  const [form, setForm] = useState(existingTask || initialState);
+  const [saving, setSaving] = useState(false);
+  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      if (existingTask) await updateTask(existingTask._id, form);
+      else await createTask(form);
+      onSaved();
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input name="title" value={form.title} onChange={handleChange} placeholder="Title" required />
+      <textarea name="description" value={form.description} onChange={handleChange} placeholder="Description" />
+      <select name="status" value={form.status} onChange={handleChange}>
+        <option value="todo">To Do</option>
+        <option value="progress">In Progress</option>
+        <option value="completed">Completed</option>
+      </select>
+      <select name="priority" value={form.priority} onChange={handleChange}>
+        <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
+      </select>
+      <input type="date" name="dueDate" value={form.dueDate} onChange={handleChange} />
+      <button type="submit" disabled={saving}>{saving ? "Saving..." : "Save Task"}</button>
+    </form>
+  );
+};
+
+export default TaskForm;
+\end{lstlisting}
+
+\section{Frontend: TaskList.jsx}
+
+\begin{lstlisting}[language=JavaScript]
+import { useEffect, useState } from "react";
+import { fetchTasks, deleteTask } from "../services/taskService";
+import TaskCard from "./TaskCard";
+
+const TaskList = () => {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadTasks = async () => {
+    setLoading(true);
+    const { data } = await fetchTasks({ page: 1, limit: 10 });
+    setTasks(data.tasks);
+    setLoading(false);
+  };
+
+  useEffect(() => { loadTasks(); }, []);
+
+  const handleDelete = async (id) => {
+    await deleteTask(id);
+    setTasks((prev) => prev.filter((t) => t._id !== id));
+  };
+
+  if (loading) return <p>Loading tasks...</p>;
+  return (
+    <div className="task-list">
+      {tasks.map((task) => <TaskCard key={task._id} task={task} onDelete={() => handleDelete(task._id)} />)}
+    </div>
+  );
+};
+
+export default TaskList;
+\end{lstlisting}
+
+\section{End-to-End Flows}
+
+\begin{diagrambox}[Create Task Flow]
+\begin{verbatim}
+TaskForm submit -> createTask(form) -> POST /api/tasks (axios, withCredentials)
+  -> protect middleware (verifies cookie, sets req.user)
+  -> task.controller.createTask (reads req.body, calls service)
+  -> task.service.createTask (Task.create({...data, user: userId}))
+  -> MongoDB insert -> 201 response -> onSaved() -> TaskList reloads
+\end{verbatim}
+\end{diagrambox}
+
+\begin{diagrambox}[Delete Task Flow]
+\begin{verbatim}
+TaskCard "Delete" click -> deleteTask(id) -> DELETE /api/tasks/:id
+  -> protect middleware (req.user set)
+  -> task.controller.deleteTask (calls service with id + userId)
+  -> task.service.deleteTask (Task.findOneAndDelete({_id, user}))
+  -> 200 response -> setTasks(prev => filter out id)  (optimistic UI update)
+\end{verbatim}
+\end{diagrambox}
+
+\begin{warnbox}[WARNING]
+Every service function scopes queries with \texttt{user: userId}. Without this, any authenticated user could read, update, or delete another user's tasks by guessing an \texttt{\_id}.
+\end{warnbox}

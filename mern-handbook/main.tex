@@ -1,0 +1,273 @@
+\documentclass[11pt,oneside]{book}
+
+% ---------- PACKAGES ----------
+\usepackage[a4paper,top=2.2cm,bottom=2.2cm,left=2.2cm,right=2.2cm]{geometry}
+\usepackage{fontspec}
+\setmainfont{Georgia}
+\newfontfamily\headingfont{Calibri}
+\newfontfamily\monofont{Consolas}
+
+\usepackage{xcolor}
+\definecolor{mernblue}{HTML}{1B3B6F}
+\definecolor{merngreen}{HTML}{15803D}
+\definecolor{mernteal}{HTML}{0F766E}
+\definecolor{mernred}{HTML}{B91C1C}
+\definecolor{mernorange}{HTML}{C2410C}
+\definecolor{codebg}{HTML}{F5F7FA}
+\definecolor{diagrambg}{HTML}{EEF2FF}
+\definecolor{notebg}{HTML}{ECFDF5}
+\definecolor{warnbg}{HTML}{FEF2F2}
+\definecolor{tipbg}{HTML}{FFFBEB}
+\definecolor{lightgray}{HTML}{6B7280}
+
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage{tcolorbox}
+\tcbuselibrary{skins,breakable}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage[titles]{tocloft}
+\usepackage{needspace}
+\usepackage{amssymb}
+\usepackage{amsmath}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=mernblue,
+    citecolor=mernblue,
+    urlcolor=mernteal,
+    bookmarksdepth=2,
+    bookmarksopen=true
+}
+
+% ---------- CHAPTER / SECTION STYLE ----------
+\titleformat{\chapter}[display]
+  {\headingfont\bfseries\color{mernblue}}
+  {\filright\Large\scshape\chaptertitlename\ \thechapter}
+  {6pt}
+  {\Huge}
+  [{\vspace{2pt}\titlerule[1.2pt]\vspace{6pt}}]
+\titlespacing*{\chapter}{0pt}{10pt}{20pt}
+
+\titleformat{\section}
+  {\headingfont\bfseries\Large\color{mernblue}}{\thesection}{8pt}{}
+\titleformat{\subsection}
+  {\headingfont\bfseries\large\color{mernteal}}{\thesubsection}{6pt}{}
+\titleformat{\subsubsection}
+  {\headingfont\bfseries\color{mernorange}}{\thesubsubsection}{6pt}{}
+
+% ---------- HEADER / FOOTER ----------
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\fancyhead[L]{\small\headingfont\color{lightgray}MERN Full-Stack Development Handbook}
+\fancyhead[R]{\small\headingfont\color{lightgray}\leftmark}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\chaptermark}[1]{\markboth{#1}{}}
+\renewcommand{\leftmark}{\nouppercase{\rightmark}}
+\fancypagestyle{plain}{%
+  \fancyhf{}
+  \fancyfoot[C]{\small\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+}
+
+% ---------- CODE LISTINGS ----------
+% This MiKTeX listings install ships no built-in JavaScript definition,
+% so we define a lightweight one covering JS/JSX/Node/Express/Mongoose syntax.
+\lstdefinelanguage{JavaScript}{
+  morekeywords={
+    typeof,new,in,of,instanceof,export,import,from,as,default,extends,super,
+    async,await,function,return,this,class,let,const,var,if,else,for,while,
+    do,switch,case,break,continue,try,catch,finally,throw,delete,void,yield,
+    static,get,set,null,undefined,true,false
+  },
+  sensitive=true,
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]',
+  morestring=[b]",
+  morestring=[b]`
+}
+\lstdefinelanguage{bash}{
+  morekeywords={cd,mkdir,npm,npx,node,cp,mv,rm,export,echo,sudo,git},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]",
+  morestring=[b]'
+}
+\lstdefinestyle{mernstyle}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\monofont\small,
+  keywordstyle=\color{mernblue}\bfseries,
+  stringstyle=\color{merngreen},
+  commentstyle=\color{lightgray}\itshape,
+  numberstyle=\tiny\color{lightgray},
+  breaklines=true,
+  breakatwhitespace=false,
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{lightgray},
+  tabsize=2,
+  showstringspaces=false,
+  columns=fullflexible,
+  xleftmargin=2pt,
+  xrightmargin=2pt,
+  aboveskip=8pt,
+  belowskip=8pt
+}
+\lstset{style=mernstyle}
+
+% ---------- CUSTOM BOXES ----------
+\newtcolorbox{diagrambox}[1][Flow]{
+  enhanced, breakable, colback=diagrambg, colframe=mernblue!60,
+  boxrule=0.6pt, arc=2pt, left=8pt, right=8pt, top=6pt, bottom=6pt,
+  fonttitle=\headingfont\bfseries\small,
+  title=#1, coltitle=white, colbacktitle=mernblue,
+  attach boxed title to top left={xshift=8pt,yshift=-2pt},
+  boxed title style={boxrule=0pt,arc=1pt}
+}
+
+\newtcolorbox{notebox}[1][NOTE]{
+  enhanced, breakable, colback=notebg, colframe=merngreen,
+  boxrule=0.6pt, arc=2pt, left=8pt, right=8pt, top=5pt, bottom=5pt,
+  fonttitle=\headingfont\bfseries\small,
+  title={\textbf{#1}}, coltitle=merngreen
+}
+
+\newtcolorbox{warnbox}[1][WARNING]{
+  enhanced, breakable, colback=warnbg, colframe=mernred,
+  boxrule=0.6pt, arc=2pt, left=8pt, right=8pt, top=5pt, bottom=5pt,
+  fonttitle=\headingfont\bfseries\small,
+  title={\textbf{#1}}, coltitle=mernred
+}
+
+\newtcolorbox{tipbox}[1][TIP]{
+  enhanced, breakable, colback=tipbg, colframe=mernorange,
+  boxrule=0.6pt, arc=2pt, left=8pt, right=8pt, top=5pt, bottom=5pt,
+  fonttitle=\headingfont\bfseries\small,
+  title={\textbf{#1}}, coltitle=mernorange
+}
+
+\newcommand{\whatwhyhow}[3]{%
+  \begin{tcolorbox}[enhanced, breakable, colback=white, colframe=mernblue!40,
+    boxrule=0.5pt, arc=2pt, left=8pt,right=8pt,top=5pt,bottom=5pt]
+  \textbf{\color{mernblue}WHAT:} #1\\[3pt]
+  \textbf{\color{mernteal}WHY:} #2\\[3pt]
+  \textbf{\color{mernorange}HOW:} #3
+  \end{tcolorbox}
+}
+
+% Reduce whitespace on lists
+\setlist{itemsep=2pt, topsep=4pt}
+
+\setcounter{tocdepth}{2}
+\setcounter{secnumdepth}{3}
+
+\begin{document}
+
+% ================= COVER PAGE =================
+\begin{titlepage}
+\newgeometry{margin=0cm}
+\begin{tikzpicture}[remember picture, overlay]
+\end{tikzpicture}
+\begin{center}
+\vspace*{2.2cm}
+{\color{mernblue}\rule{\textwidth}{2pt}}\\[1.6cm]
+{\headingfont\bfseries\color{lightgray}\Large A PRACTICAL, IMPLEMENTATION-FOCUSED GUIDE}\\[0.8cm]
+{\headingfont\bfseries\color{mernblue}\fontsize{40}{48}\selectfont MERN}\\[0.2cm]
+{\headingfont\bfseries\color{mernblue}\fontsize{26}{30}\selectfont Full-Stack Development Handbook}\\[1.4cm]
+{\headingfont\color{mernteal}\Large From an Empty Folder to a Production-Ready Web Application}\\[2cm]
+
+\begin{tabular}{ccc}
+\textcolor{mernblue}{\Large\bfseries React} & \textcolor{lightgray}{\Large $\bullet$} & \textcolor{mernteal}{\Large\bfseries Node.js}\\[4pt]
+\textcolor{mernorange}{\Large\bfseries Express} & \textcolor{lightgray}{\Large $\bullet$} & \textcolor{merngreen}{\Large\bfseries MongoDB}
+\end{tabular}
+
+\vspace{2.5cm}
+{\color{mernblue}\rule{0.5\textwidth}{1pt}}\\[0.6cm]
+{\headingfont\color{lightgray} Architecture\ \ $\cdot$\ \ Authentication\ \ $\cdot$\ \ CRUD\ \ $\cdot$\ \ Security\ \ $\cdot$\ \ Deployment}
+\end{center}
+\vfill
+\begin{center}
+{\headingfont\color{lightgray}\small Building the Task Management System \textemdash\ a complete end-to-end MERN project}
+\end{center}
+\vspace*{1.5cm}
+\restoregeometry
+\end{titlepage}
+
+\clearpage
+\thispagestyle{empty}
+\vspace*{4cm}
+\begin{center}
+{\headingfont\color{lightgray}\itshape This handbook assumes working knowledge of core JavaScript.\\
+It focuses exclusively on MERN application architecture, implementation, and production readiness.\\
+It does not cover JavaScript fundamentals, Git/GitHub usage, or interview preparation.}
+\end{center}
+
+% ================= TOC =================
+\clearpage
+\pagenumbering{roman}
+\tableofcontents
+
+\clearpage
+\pagenumbering{arabic}
+
+% ================= CHAPTERS =================
+\include{chapters/part01}
+\include{chapters/part02}
+\include{chapters/part03}
+\include{chapters/part04}
+\include{chapters/part05}
+\include{chapters/part06}
+\include{chapters/part07}
+\include{chapters/part08}
+\include{chapters/part09}
+\include{chapters/part10}
+\include{chapters/part11}
+\include{chapters/part12}
+\include{chapters/part13}
+\include{chapters/part14}
+\include{chapters/part15}
+\include{chapters/part16}
+\include{chapters/part17}
+\include{chapters/part18}
+\include{chapters/part19}
+\include{chapters/part20}
+\include{chapters/part21}
+\include{chapters/part22}
+\include{chapters/part23}
+\include{chapters/part24}
+\include{chapters/part25}
+\include{chapters/part26}
+\include{chapters/part27}
+\include{chapters/part28}
+\include{chapters/part29}
+\include{chapters/part30}
+\include{chapters/part31}
+\include{chapters/part32}
+\include{chapters/part33}
+\include{chapters/part34}
+\include{chapters/part35}
+\include{chapters/part36}
+\include{chapters/part37}
+\include{chapters/part38}
+\include{chapters/part39}
+\include{chapters/part40}
+\include{chapters/part41}
+\include{chapters/part42}
+\include{chapters/part43}
+\include{chapters/part44}
+\include{chapters/part45}
+\include{chapters/part46}
+\include{chapters/part47}
+\include{chapters/part48}
+\include{chapters/part49}
+\include{chapters/final}
+
+\end{document}

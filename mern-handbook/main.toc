@@ -1,0 +1,254 @@
+\contentsline {chapter}{\numberline {1}How a MERN Application Works}{1}{chapter.1}%
+\contentsline {section}{\numberline {1.1}The Full Request Lifecycle}{1}{section.1.1}%
+\contentsline {section}{\numberline {1.2}Concrete Example: ``User Clicks Create Task''}{2}{section.1.2}%
+\contentsline {chapter}{\numberline {2}Creating a MERN Project}{4}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Scaffolding the Frontend}{4}{section.2.1}%
+\contentsline {section}{\numberline {2.2}Scaffolding the Backend}{4}{section.2.2}%
+\contentsline {chapter}{\numberline {3}React Project Structure}{6}{chapter.3}%
+\contentsline {section}{\numberline {3.1}What Goes Where}{6}{section.3.1}%
+\contentsline {chapter}{\numberline {4}Components and Pages}{8}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Component Tree}{8}{section.4.1}%
+\contentsline {section}{\numberline {4.2}A Reusable Component}{8}{section.4.2}%
+\contentsline {section}{\numberline {4.3}A Page Component}{9}{section.4.3}%
+\contentsline {section}{\numberline {4.4}Forms and Conditional Rendering}{9}{section.4.4}%
+\contentsline {chapter}{\numberline {5}Routing with React Router}{11}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Core Building Blocks}{11}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Protected Routes}{12}{section.5.2}%
+\contentsline {chapter}{\numberline {6}React State Management}{14}{chapter.6}%
+\contentsline {section}{\numberline {6.1}The Core Hooks in Practice}{14}{section.6.1}%
+\contentsline {section}{\numberline {6.2}A Custom Hook: useAuth}{14}{section.6.2}%
+\contentsline {section}{\numberline {6.3}Common Mistakes: Infinite API Call Loops}{15}{section.6.3}%
+\contentsline {chapter}{\numberline {7}Axios and the Frontend API Layer}{17}{chapter.7}%
+\contentsline {section}{\numberline {7.1}A Centralized Axios Instance}{17}{section.7.1}%
+\contentsline {section}{\numberline {7.2}Interceptors}{17}{section.7.2}%
+\contentsline {section}{\numberline {7.3}Error Handling in Service Functions}{18}{section.7.3}%
+\contentsline {chapter}{\numberline {8}Establishing API Communication}{19}{chapter.8}%
+\contentsline {section}{\numberline {8.1}The Complete Cycle, Labeled}{19}{section.8.1}%
+\contentsline {section}{\numberline {8.2}The Frontend Side}{20}{section.8.2}%
+\contentsline {section}{\numberline {8.3}The Backend Side}{21}{section.8.3}%
+\contentsline {section}{\numberline {8.4}Standard Response Shapes}{22}{section.8.4}%
+\contentsline {chapter}{\numberline {9}Express Server Setup}{23}{chapter.9}%
+\contentsline {section}{\numberline {9.1}Why Split \texttt {app.js} and \texttt {server.js}}{23}{section.9.1}%
+\contentsline {subsection}{\numberline {9.1.1}backend/src/app.js}{23}{subsection.9.1.1}%
+\contentsline {subsection}{\numberline {9.1.2}backend/src/server.js}{24}{subsection.9.1.2}%
+\contentsline {section}{\numberline {9.2}Core Concepts Recap}{25}{section.9.2}%
+\contentsline {chapter}{\numberline {10}Express Routing}{26}{chapter.10}%
+\contentsline {section}{\numberline {10.1}HTTP Methods and Their Purpose}{26}{section.10.1}%
+\contentsline {section}{\numberline {10.2}Route Files with express.Router()}{26}{section.10.2}%
+\contentsline {subsection}{\numberline {10.2.1}routes/auth.routes.js}{26}{subsection.10.2.1}%
+\contentsline {subsection}{\numberline {10.2.2}routes/user.routes.js}{26}{subsection.10.2.2}%
+\contentsline {subsection}{\numberline {10.2.3}routes/task.routes.js}{27}{subsection.10.2.3}%
+\contentsline {subsection}{\numberline {10.2.4}routes/profile.routes.js}{27}{subsection.10.2.4}%
+\contentsline {section}{\numberline {10.3}Route Params vs Query Params vs Body}{28}{section.10.3}%
+\contentsline {section}{\numberline {10.4}Task Routes Reference}{28}{section.10.4}%
+\contentsline {chapter}{\numberline {11}MVC + Service Layer Architecture}{29}{chapter.11}%
+\contentsline {section}{\numberline {11.1}Professional Backend Folder Structure}{29}{section.11.1}%
+\contentsline {section}{\numberline {11.2}The Request Flow}{29}{section.11.2}%
+\contentsline {section}{\numberline {11.3}Anti-Pattern: Everything in the Route Handler}{30}{section.11.3}%
+\contentsline {section}{\numberline {11.4}Refactored: Route -> Controller -> Service}{31}{section.11.4}%
+\contentsline {subsection}{\numberline {11.4.1}routes/task.routes.js}{31}{subsection.11.4.1}%
+\contentsline {subsection}{\numberline {11.4.2}controllers/task.controller.js}{31}{subsection.11.4.2}%
+\contentsline {subsection}{\numberline {11.4.3}services/task.service.js}{31}{subsection.11.4.3}%
+\contentsline {section}{\numberline {11.5}Layer Responsibilities}{32}{section.11.5}%
+\contentsline {chapter}{\numberline {12}MongoDB Setup}{33}{chapter.12}%
+\contentsline {section}{\numberline {12.1}Core Concepts}{33}{section.12.1}%
+\contentsline {section}{\numberline {12.2}Connecting with Mongoose}{33}{section.12.2}%
+\contentsline {subsection}{\numberline {12.2.1}config/db.js}{34}{subsection.12.2.1}%
+\contentsline {subsection}{\numberline {12.2.2}server.js (excerpt)}{34}{subsection.12.2.2}%
+\contentsline {section}{\numberline {12.3}MongoDB Atlas Connection String}{34}{section.12.3}%
+\contentsline {chapter}{\numberline {13}Mongoose Schemas and Models}{35}{chapter.13}%
+\contentsline {section}{\numberline {13.1}Schema vs Model}{35}{section.13.1}%
+\contentsline {section}{\numberline {13.2}Task Schema}{35}{section.13.2}%
+\contentsline {section}{\numberline {13.3}Field Options Explained}{36}{section.13.3}%
+\contentsline {section}{\numberline {13.4}User Schema (for later chapters)}{36}{section.13.4}%
+\contentsline {chapter}{\numberline {14}Complete CRUD: The Task Resource End to End}{38}{chapter.14}%
+\contentsline {section}{\numberline {14.1}Backend: Routes}{38}{section.14.1}%
+\contentsline {section}{\numberline {14.2}Backend: Service Layer}{38}{section.14.2}%
+\contentsline {section}{\numberline {14.3}Backend: Controller}{39}{section.14.3}%
+\contentsline {section}{\numberline {14.4}Frontend: taskService.js}{40}{section.14.4}%
+\contentsline {section}{\numberline {14.5}Frontend: TaskForm.jsx}{40}{section.14.5}%
+\contentsline {section}{\numberline {14.6}Frontend: TaskList.jsx}{41}{section.14.6}%
+\contentsline {section}{\numberline {14.7}End-to-End Flows}{42}{section.14.7}%
+\contentsline {chapter}{\numberline {15}Database Relationships}{44}{chapter.15}%
+\contentsline {section}{\numberline {15.1}One-to-One: User and Profile}{44}{section.15.1}%
+\contentsline {section}{\numberline {15.2}One-to-Many: User and Tasks}{44}{section.15.2}%
+\contentsline {section}{\numberline {15.3}populate(): Resolving References}{44}{section.15.3}%
+\contentsline {subsection}{\numberline {15.3.1}Before populate() — raw ObjectId}{45}{subsection.15.3.1}%
+\contentsline {subsection}{\numberline {15.3.2}After populate("user", "name email")}{45}{subsection.15.3.2}%
+\contentsline {section}{\numberline {15.4}Many-to-Many: Users and Projects}{45}{section.15.4}%
+\contentsline {chapter}{\numberline {16}Complete Authentication System (Overview)}{47}{chapter.16}%
+\contentsline {section}{\numberline {16.1}Register Flow}{47}{section.16.1}%
+\contentsline {section}{\numberline {16.2}Login Flow}{47}{section.16.2}%
+\contentsline {section}{\numberline {16.3}authController.js Skeleton}{48}{section.16.3}%
+\contentsline {section}{\numberline {16.4}Auth Routes}{49}{section.16.4}%
+\contentsline {section}{\numberline {16.5}What Comes Next}{49}{section.16.5}%
+\contentsline {chapter}{\numberline {17}Password Hashing with bcrypt}{50}{chapter.17}%
+\contentsline {section}{\numberline {17.1}Hashing and Salt}{50}{section.17.1}%
+\contentsline {section}{\numberline {17.2}Hashing on Registration}{50}{section.17.2}%
+\contentsline {subsection}{\numberline {17.2.1}The Salt Rounds Tradeoff}{51}{subsection.17.2.1}%
+\contentsline {section}{\numberline {17.3}Verifying on Login}{51}{section.17.3}%
+\contentsline {section}{\numberline {17.4}Alternative: Hashing in a Mongoose Pre-Save Hook}{52}{section.17.4}%
+\contentsline {subsection}{\numberline {17.4.1}Why \texttt {isModified("password")} Matters}{53}{subsection.17.4.1}%
+\contentsline {chapter}{\numberline {18}JWT Authentication}{54}{chapter.18}%
+\contentsline {section}{\numberline {18.1}Anatomy of a JWT}{54}{section.18.1}%
+\contentsline {subsection}{\numberline {18.1.1}Expiration and Signing}{54}{subsection.18.1.1}%
+\contentsline {section}{\numberline {18.2}The Authentication Flow}{54}{section.18.2}%
+\contentsline {section}{\numberline {18.3}Generating a Token}{55}{section.18.3}%
+\contentsline {section}{\numberline {18.4}Verifying a Token}{55}{section.18.4}%
+\contentsline {chapter}{\numberline {19}Secure Authentication Cookies}{57}{chapter.19}%
+\contentsline {section}{\numberline {19.1}Setting the Cookie}{57}{section.19.1}%
+\contentsline {section}{\numberline {19.2}Why Each Cookie Option Exists}{58}{section.19.2}%
+\contentsline {section}{\numberline {19.3}The Frontend Side: withCredentials}{58}{section.19.3}%
+\contentsline {chapter}{\numberline {20}Auth Middleware for Protected APIs}{59}{chapter.20}%
+\contentsline {section}{\numberline {20.1}The \texttt {protect} Middleware}{59}{section.20.1}%
+\contentsline {subsection}{\numberline {20.1.1}Walking Through Each Failure Case}{60}{subsection.20.1.1}%
+\contentsline {section}{\numberline {20.2}Using the Middleware}{60}{section.20.2}%
+\contentsline {chapter}{\numberline {21}Authorization: Roles and Permissions}{62}{chapter.21}%
+\contentsline {section}{\numberline {21.1}Authentication vs Authorization}{62}{section.21.1}%
+\contentsline {section}{\numberline {21.2}The Role Field}{62}{section.21.2}%
+\contentsline {section}{\numberline {21.3}The \texttt {authorize} Middleware Factory}{62}{section.21.3}%
+\contentsline {section}{\numberline {21.4}Using It on Routes}{63}{section.21.4}%
+\contentsline {chapter}{\numberline {22}Google OAuth Login}{65}{chapter.22}%
+\contentsline {section}{\numberline {22.1}The Big Picture}{65}{section.22.1}%
+\contentsline {section}{\numberline {22.2}Google Cloud Console Setup}{65}{section.22.2}%
+\contentsline {section}{\numberline {22.3}Backend: Verifying the ID Token}{66}{section.22.3}%
+\contentsline {section}{\numberline {22.4}Handling the Password Field}{67}{section.22.4}%
+\contentsline {section}{\numberline {22.5}Subsequent Logins}{67}{section.22.5}%
+\contentsline {chapter}{\numberline {23}Backend Validation}{69}{chapter.23}%
+\contentsline {section}{\numberline {23.1}Frontend vs Backend Validation}{69}{section.23.1}%
+\contentsline {section}{\numberline {23.2}Validating with express-validator}{69}{section.23.2}%
+\contentsline {section}{\numberline {23.3}Wiring It Into the Route}{70}{section.23.3}%
+\contentsline {chapter}{\numberline {24}Global Error Handling}{72}{chapter.24}%
+\contentsline {section}{\numberline {24.1}A Custom AppError Class}{72}{section.24.1}%
+\contentsline {section}{\numberline {24.2}Avoiding Repetitive try/catch: asyncHandler}{73}{section.24.2}%
+\contentsline {section}{\numberline {24.3}The Global Error Middleware}{73}{section.24.3}%
+\contentsline {section}{\numberline {24.4}Mapping Mongoose-Specific Errors}{74}{section.24.4}%
+\contentsline {chapter}{\numberline {25}HTTP Status Codes Reference}{76}{chapter.25}%
+\contentsline {section}{\numberline {25.1}Why Status Codes Matter}{76}{section.25.1}%
+\contentsline {section}{\numberline {25.2}Reference Table}{76}{section.25.2}%
+\contentsline {chapter}{\numberline {26}CORS --- Connecting Different Origins}{77}{chapter.26}%
+\contentsline {section}{\numberline {26.1}Why the Browser Blocks the Request}{77}{section.26.1}%
+\contentsline {subsection}{\numberline {26.1.1}Preflight Requests}{77}{subsection.26.1.1}%
+\contentsline {section}{\numberline {26.2}Configuring CORS in Express}{77}{section.26.2}%
+\contentsline {section}{\numberline {26.3}Common CORS Errors and Fixes}{78}{section.26.3}%
+\contentsline {chapter}{\numberline {27}File Uploads (Multer + Cloudinary)}{80}{chapter.27}%
+\contentsline {section}{\numberline {27.1}The Upload Pipeline}{80}{section.27.1}%
+\contentsline {subsection}{\numberline {27.1.1}Why multipart/form-data}{80}{subsection.27.1.1}%
+\contentsline {section}{\numberline {27.2}Backend: Multer Configuration}{80}{section.27.2}%
+\contentsline {subsection}{\numberline {27.2.1}Cloudinary Configuration}{81}{subsection.27.2.1}%
+\contentsline {subsection}{\numberline {27.2.2}Controller: Upload and Save}{81}{subsection.27.2.2}%
+\contentsline {subsection}{\numberline {27.2.3}Route Wiring}{82}{subsection.27.2.3}%
+\contentsline {section}{\numberline {27.3}Frontend: Building and Sending FormData}{82}{section.27.3}%
+\contentsline {chapter}{\numberline {28}Search, Filter, and Sort}{84}{chapter.28}%
+\contentsline {section}{\numberline {28.1}Target Endpoint}{84}{section.28.1}%
+\contentsline {section}{\numberline {28.2}Backend: Building the Filter Dynamically}{84}{section.28.2}%
+\contentsline {section}{\numberline {28.3}Frontend: Query State and Service Function}{85}{section.28.3}%
+\contentsline {chapter}{\numberline {29}Pagination}{87}{chapter.29}%
+\contentsline {section}{\numberline {29.1}The skip/limit Formula}{87}{section.29.1}%
+\contentsline {section}{\numberline {29.2}Backend Implementation}{87}{section.29.2}%
+\contentsline {subsection}{\numberline {29.2.1}Response Shape}{88}{subsection.29.2.1}%
+\contentsline {section}{\numberline {29.3}Frontend: Pagination Controls}{88}{section.29.3}%
+\contentsline {chapter}{\numberline {30}MongoDB Indexing}{90}{chapter.30}%
+\contentsline {section}{\numberline {30.1}What an Index Actually Does}{90}{section.30.1}%
+\contentsline {section}{\numberline {30.2}Unique Indexes}{90}{section.30.2}%
+\contentsline {section}{\numberline {30.3}Compound Indexes}{91}{section.30.3}%
+\contentsline {section}{\numberline {30.4}When to Add an Index}{91}{section.30.4}%
+\contentsline {chapter}{\numberline {31}MongoDB Aggregation}{92}{chapter.31}%
+\contentsline {section}{\numberline {31.1}The Pipeline Concept}{92}{section.31.1}%
+\contentsline {section}{\numberline {31.2}Dashboard Stats Endpoint}{92}{section.31.2}%
+\contentsline {subsection}{\numberline {31.2.1}Example Output}{93}{subsection.31.2.1}%
+\contentsline {section}{\numberline {31.3}Route Wiring}{94}{section.31.3}%
+\contentsline {chapter}{\numberline {32}Frontend Auth State (AuthContext)}{95}{chapter.32}%
+\contentsline {section}{\numberline {32.1}Why a Context Instead of Prop Drilling}{95}{section.32.1}%
+\contentsline {section}{\numberline {32.2}AuthContext Implementation}{95}{section.32.2}%
+\contentsline {section}{\numberline {32.3}Wiring the Provider in main.jsx}{96}{section.32.3}%
+\contentsline {section}{\numberline {32.4}Consuming the Context: Navbar}{96}{section.32.4}%
+\contentsline {chapter}{\numberline {33}API Loading and Error States}{98}{chapter.33}%
+\contentsline {section}{\numberline {33.1}The State Chain}{98}{section.33.1}%
+\contentsline {section}{\numberline {33.2}Implementing the Pattern}{98}{section.33.2}%
+\contentsline {section}{\numberline {33.3}Loading Spinners}{100}{section.33.3}%
+\contentsline {section}{\numberline {33.4}Skeleton Screens}{100}{section.33.4}%
+\contentsline {section}{\numberline {33.5}Choosing the Right State to Show}{100}{section.33.5}%
+\contentsline {chapter}{\numberline {34}Forms}{102}{chapter.34}%
+\contentsline {section}{\numberline {34.1}Controlled Inputs and a Single Form State Object}{102}{section.34.1}%
+\contentsline {section}{\numberline {34.2}Example 1: LoginForm}{102}{section.34.2}%
+\contentsline {section}{\numberline {34.3}Example 2: RegisterForm with Confirm Password}{103}{section.34.3}%
+\contentsline {section}{\numberline {34.4}Example 3: TaskForm --- Create/Edit Dual Mode}{105}{section.34.4}%
+\contentsline {section}{\numberline {34.5}Resetting Forms After Success}{106}{section.34.5}%
+\contentsline {chapter}{\numberline {35}Tailwind CSS for MERN Apps}{107}{chapter.35}%
+\contentsline {section}{\numberline {35.1}Responsive Prefixes}{107}{section.35.1}%
+\contentsline {section}{\numberline {35.2}Flex, Grid, and Spacing}{107}{section.35.2}%
+\contentsline {section}{\numberline {35.3}Styling Forms}{107}{section.35.3}%
+\contentsline {section}{\numberline {35.4}Buttons: Primary / Secondary / Danger}{108}{section.35.4}%
+\contentsline {section}{\numberline {35.5}Cards: TaskCard}{108}{section.35.5}%
+\contentsline {section}{\numberline {35.6}Modals}{109}{section.35.6}%
+\contentsline {section}{\numberline {35.7}Navbar with Responsive Menu}{109}{section.35.7}%
+\contentsline {section}{\numberline {35.8}Sidebar Layout}{110}{section.35.8}%
+\contentsline {chapter}{\numberline {36}Frontend Error Boundaries}{111}{chapter.36}%
+\contentsline {section}{\numberline {36.1}Render Errors vs. API Errors}{111}{section.36.1}%
+\contentsline {section}{\numberline {36.2}Building an ErrorBoundary}{111}{section.36.2}%
+\contentsline {section}{\numberline {36.3}Wrapping the App}{112}{section.36.3}%
+\contentsline {section}{\numberline {36.4}Error Boundaries Do Not Replace API Error Handling}{113}{section.36.4}%
+\contentsline {chapter}{\numberline {37}MERN Security}{114}{chapter.37}%
+\contentsline {section}{\numberline {37.1}Cross-Site Scripting (XSS)}{114}{section.37.1}%
+\contentsline {section}{\numberline {37.2}Cross-Site Request Forgery (CSRF)}{114}{section.37.2}%
+\contentsline {section}{\numberline {37.3}NoSQL Injection}{115}{section.37.3}%
+\contentsline {section}{\numberline {37.4}Brute Force Login Attempts}{115}{section.37.4}%
+\contentsline {section}{\numberline {37.5}Credential Theft via XSS-Accessible Tokens}{115}{section.37.5}%
+\contentsline {section}{\numberline {37.6}Insecure Cookies}{116}{section.37.6}%
+\contentsline {section}{\numberline {37.7}Common HTTP Header Hardening}{116}{section.37.7}%
+\contentsline {section}{\numberline {37.8}Exposed Secrets}{116}{section.37.8}%
+\contentsline {section}{\numberline {37.9}Malicious File Uploads}{116}{section.37.9}%
+\contentsline {section}{\numberline {37.10}Input Validation}{117}{section.37.10}%
+\contentsline {section}{\numberline {37.11}Summary Table}{117}{section.37.11}%
+\contentsline {chapter}{\numberline {38}Environment Variables}{118}{chapter.38}%
+\contentsline {section}{\numberline {38.1}Why Secrets Live Outside Source Code}{118}{section.38.1}%
+\contentsline {section}{\numberline {38.2}Backend: \texttt {.env}}{118}{section.38.2}%
+\contentsline {section}{\numberline {38.3}Frontend: \texttt {.env} with Vite}{118}{section.38.3}%
+\contentsline {section}{\numberline {38.4}Backend vs. Frontend: Different Rules}{119}{section.38.4}%
+\contentsline {section}{\numberline {38.5}Development vs. Production Configuration}{119}{section.38.5}%
+\contentsline {section}{\numberline {38.6}Always Gitignore \texttt {.env}}{120}{section.38.6}%
+\contentsline {chapter}{\numberline {39}Testing APIs with Postman}{121}{chapter.39}%
+\contentsline {section}{\numberline {39.1}Register}{121}{section.39.1}%
+\contentsline {section}{\numberline {39.2}Login}{121}{section.39.2}%
+\contentsline {section}{\numberline {39.3}Get Profile (\texttt {/me})}{122}{section.39.3}%
+\contentsline {section}{\numberline {39.4}Create Task}{122}{section.39.4}%
+\contentsline {section}{\numberline {39.5}Get Tasks}{122}{section.39.5}%
+\contentsline {section}{\numberline {39.6}Update Task}{122}{section.39.6}%
+\contentsline {section}{\numberline {39.7}Delete Task}{123}{section.39.7}%
+\contentsline {section}{\numberline {39.8}What to Check on Every Request}{123}{section.39.8}%
+\contentsline {chapter}{\numberline {40}Debugging MERN Applications}{124}{chapter.40}%
+\contentsline {section}{\numberline {40.1}The Core Principle}{124}{section.40.1}%
+\contentsline {section}{\numberline {40.2}The Debugging Checklist}{124}{section.40.2}%
+\contentsline {section}{\numberline {40.3}Worked Example: "Task Creation Silently Fails"}{125}{section.40.3}%
+\contentsline {chapter}{\numberline {41}Common Frontend Errors}{127}{chapter.41}%
+\contentsline {chapter}{\numberline {42}Common Backend Errors}{130}{chapter.42}%
+\contentsline {chapter}{\numberline {43}Authentication Errors}{133}{chapter.43}%
+\contentsline {chapter}{\numberline {44}Deployment}{135}{chapter.44}%
+\contentsline {section}{\numberline {44.1}Production Architecture}{135}{section.44.1}%
+\contentsline {section}{\numberline {44.2}Frontend: Build for Production}{135}{section.44.2}%
+\contentsline {section}{\numberline {44.3}Backend: Start Command}{135}{section.44.3}%
+\contentsline {section}{\numberline {44.4}Environment Variables}{136}{section.44.4}%
+\contentsline {section}{\numberline {44.5}Updating CORS for Production}{136}{section.44.5}%
+\contentsline {section}{\numberline {44.6}MongoDB Atlas Network Access}{136}{section.44.6}%
+\contentsline {section}{\numberline {44.7}HTTPS and Custom Domains}{136}{section.44.7}%
+\contentsline {section}{\numberline {44.8}Debugging in Production}{136}{section.44.8}%
+\contentsline {chapter}{\numberline {45}Production Checklist}{138}{chapter.45}%
+\contentsline {section}{\numberline {45.1}Backend}{138}{section.45.1}%
+\contentsline {section}{\numberline {45.2}Frontend}{138}{section.45.2}%
+\contentsline {section}{\numberline {45.3}Database}{139}{section.45.3}%
+\contentsline {section}{\numberline {45.4}Security}{139}{section.45.4}%
+\contentsline {chapter}{\numberline {46}Complete Real-World Project: Task Management System}{140}{chapter.46}%
+\contentsline {section}{\numberline {46.1}Features}{140}{section.46.1}%
+\contentsline {section}{\numberline {46.2}Technical Stack}{140}{section.46.2}%
+\contentsline {section}{\numberline {46.3}Complete Project Structure}{140}{section.46.3}%
+\contentsline {section}{\numberline {46.4}Purpose of Each Piece}{141}{section.46.4}%
+\contentsline {chapter}{\numberline {47}End-to-End Implementation Order}{142}{chapter.47}%
+\contentsline {chapter}{\numberline {48}Key Architecture Diagrams}{144}{chapter.48}%
+\contentsline {chapter}{\numberline {49}MERN Quick Reference}{145}{chapter.49}%
+\contentsline {section}{\numberline {49.1}Express}{145}{section.49.1}%
+\contentsline {section}{\numberline {49.2}Mongoose}{145}{section.49.2}%
+\contentsline {section}{\numberline {49.3}React}{146}{section.49.3}%
+\contentsline {section}{\numberline {49.4}Axios}{146}{section.49.4}%
+\contentsline {section}{\numberline {49.5}Authentication}{146}{section.49.5}%
+\contentsline {chapter}{Final Revision: MERN Project-Building Cheat Sheet}{147}{chapter*.2}%

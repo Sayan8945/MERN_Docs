@@ -1,0 +1,99 @@
+\chapter{CORS --- Connecting Different Origins}
+
+\section{Why the Browser Blocks the Request}
+
+The React app (\texttt{localhost:5173}) and Express API
+(\texttt{localhost:5000}) are different \textbf{origins} ---
+\texttt{scheme + host + port} --- so browsers enforce the
+\textbf{Same-Origin Policy} and block cross-origin reads unless the server
+explicitly allows it. This is browser-side only; tools like Postman or
+\texttt{curl} are unaffected.
+
+\textbf{CORS (Cross-Origin Resource Sharing)} is how the server opts an
+origin back in, via headers like \texttt{Access-Control-Allow-Origin}.
+
+\subsection{Preflight Requests}
+
+For non-simple requests (\texttt{PUT}/\texttt{PATCH}/\texttt{DELETE}, JSON
+bodies, custom headers like \texttt{Authorization}), the browser first
+sends an automatic \texttt{OPTIONS} \textbf{preflight} asking permission.
+The server must answer it with the right \texttt{Access-Control-Allow-*}
+headers or the real request never gets sent.
+
+\begin{diagrambox}[Preflight Flow]
+\begin{verbatim}
+Browser                          Server
+   |--- OPTIONS (preflight) ------->|
+   |<-- Allow-Origin/Methods/Creds -|
+   |--- PUT /api/tasks/123 -------->|  (only if preflight passed)
+   |<-- 200 OK ---------------------|
+\end{verbatim}
+\end{diagrambox}
+
+\section{Configuring CORS in Express}
+
+\begin{lstlisting}[language=JavaScript]
+const cors = require("cors");
+
+app.use(
+  cors({
+    origin: "http://localhost:5173", // exact frontend origin, not "*"
+    credentials: true,               // allow cookies / Authorization header
+  })
+);
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+\texttt{origin} cannot be \texttt{"*"} when \texttt{credentials: true} ---
+the CORS spec forbids combining a wildcard origin with credentialed
+requests, so list exact origins instead.
+\end{warnbox}
+
+\begin{lstlisting}[language=JavaScript]
+// Supporting multiple known origins (e.g. staging + production)
+const allowedOrigins = ["http://localhost:5173", "https://taskapp.example.com"];
+
+app.use(
+  cors({
+    origin: (incomingOrigin, callback) => {
+      if (!incomingOrigin || allowedOrigins.includes(incomingOrigin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
+\end{lstlisting}
+
+\section{Common CORS Errors and Fixes}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{X X}
+\toprule
+\textbf{Error in browser console} & \textbf{Fix} \\
+\midrule
+No \texttt{Access-Control-Allow-Origin} header present &
+Add \texttt{cors()} middleware before your routes. \\
+\addlinespace
+Wildcard \texttt{*} not allowed with credentials &
+Use an exact origin string instead of \texttt{"*"}. \\
+\addlinespace
+\texttt{Access-Control-Allow-Credentials} is not \texttt{true} &
+Set \texttt{credentials: true} on both server and client. \\
+\addlinespace
+Preflight response has no OK status &
+Register \texttt{cors()} as the first middleware, before auth checks. \\
+\addlinespace
+Method not allowed by \texttt{Access-Control-Allow-Methods} &
+Pass an explicit \texttt{methods} array to \texttt{cors()}. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{tipbox}[TIP]
+Read the allowed origin from \texttt{process.env.CLIENT\_URL} instead of
+hardcoding it, so the same code works across environments.
+\end{tipbox}

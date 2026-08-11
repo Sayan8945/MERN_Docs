@@ -1,0 +1,126 @@
+\chapter{Backend Validation}
+
+A form in React can disable the submit button until all fields look right.
+That's good UX -- and it stops there. It is not security, and it is not
+data integrity. Anyone can open devtools, call the API directly with
+Postman, or write a script that hits your endpoints with whatever payload
+they want, completely bypassing every input you rendered in JSX.
+
+\begin{warnbox}[WARNING]
+Frontend validation is a convenience for honest users, not a trust boundary.
+The only code that runs on infrastructure you control is your backend --
+that is the only place a validation rule is actually enforced. Every
+endpoint must independently validate its input as if the frontend did not
+exist.
+\end{warnbox}
+
+\section{Frontend vs Backend Validation}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{} & \textbf{Frontend Validation} & \textbf{Backend Validation} \\
+\midrule
+Purpose & Fast feedback, better UX & Enforce data integrity and security \\
+Runs where & Browser (React state, HTML attributes) & Server (Express middleware) \\
+Can be bypassed? & Yes -- devtools, Postman, curl, disabling JS & No -- it's the last line before the database \\
+Required? & Nice to have & Mandatory \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Validating with express-validator}
+
+\texttt{express-validator} lets you declare validation rules as middleware,
+directly on the route, right next to the endpoint they protect.
+
+\begin{lstlisting}[language=JavaScript]
+// validators/taskValidator.js
+import { body, validationResult } from "express-validator";
+
+export const validateTask = [
+  body("title")
+    .trim()
+    .notEmpty().withMessage("Title is required")
+    .isString().withMessage("Title must be a string")
+    .isLength({ min: 3 }).withMessage("Title must be at least 3 characters"),
+
+  body("status")
+    .optional()
+    .isIn(["pending", "in-progress", "completed"])
+    .withMessage("Status must be one of: pending, in-progress, completed"),
+
+  (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(422).json({
+        success: false,
+        errors: errors.array().map((e) => ({ field: e.path, message: e.msg })),
+      });
+    }
+    next();
+  },
+];
+\end{lstlisting}
+
+\texttt{validateTask} is an array of middleware: each \texttt{body(...)}
+chain runs first and attaches any errors to the request without throwing,
+then the final function checks \texttt{validationResult(req)} and either
+short-circuits with a 422 or calls \texttt{next()} to let the controller
+run.
+
+\begin{notebox}[NOTE]
+422 (Unprocessable Entity) is the conventional status code for "the request
+was well-formed but failed validation rules," distinct from 400 (malformed
+request) or 401/403 (auth failures). Using it consistently makes frontend
+error handling predictable.
+\end{notebox}
+
+\section{Wiring It Into the Route}
+
+Because \texttt{validateTask} is itself an array of middleware, Express
+happily spreads it into the route alongside \texttt{protect}:
+
+\begin{lstlisting}[language=JavaScript]
+// routes/taskRoutes.js
+import { protect } from "../middleware/authMiddleware.js";
+import { validateTask } from "../validators/taskValidator.js";
+import { createTask } from "../controllers/taskController.js";
+
+router.post("/tasks", protect, validateTask, createTask);
+\end{lstlisting}
+
+The request now passes through, in order: authentication
+(\texttt{protect}), then validation (\texttt{validateTask}), and only then
+does \texttt{createTask} run -- by that point the controller can trust that
+\texttt{req.body.title} exists and \texttt{req.body.status} (if present) is
+one of the allowed enum values.
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/taskController.js
+export const createTask = async (req, res, next) => {
+  try {
+    const { title, status } = req.body; // already validated
+    const task = await Task.create({ title, status, user: req.user._id });
+    res.status(201).json({ success: true, data: task });
+  } catch (err) {
+    next(err);
+  }
+};
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+Keep validation rules close to the shape they're checking, but separate from
+business logic in the controller. If the Task model's schema already
+defines \texttt{enum: ["pending", "in-progress", "completed"]}, the
+validator and the schema are stating the same rule in two places -- that
+duplication is acceptable here, because the validator's job is to reject bad
+input \emph{before} a database round trip, with field-level error messages,
+rather than relying solely on a Mongoose \texttt{ValidationError} after the
+fact.
+\end{tipbox}
+
+\whatwhyhow
+{Middleware-based request validation (using express-validator) that checks incoming data shape, types, and allowed values before a controller touches it.}
+{Frontend checks can always be bypassed by anyone calling the API directly, so the backend is the only place invalid or malicious data can reliably be rejected before it reaches the database.}
+{Chain validators like \texttt{body("title").notEmpty()} into an array with a final \texttt{validationResult} check, and insert that array into the route: \texttt{router.post("/tasks", protect, validateTask, createTask)}, returning 422 with field-level errors on failure.}

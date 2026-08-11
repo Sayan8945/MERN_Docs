@@ -1,0 +1,97 @@
+\chapter{Express Routing}
+
+\section{HTTP Methods and Their Purpose}
+
+\begin{itemize}
+  \item \textbf{GET} --- retrieve; no body, safe and idempotent.
+  \item \textbf{POST} --- create a new resource.
+  \item \textbf{PUT} --- replace a resource entirely.
+  \item \textbf{PATCH} --- partially update a resource.
+  \item \textbf{DELETE} --- remove a resource.
+\end{itemize}
+
+\begin{notebox}[NOTE]
+Many REST APIs use \texttt{PUT} where \texttt{PATCH} is more correct. This handbook uses \texttt{PUT} for task updates since the form sends the full object.
+\end{notebox}
+
+\section{Route Files with express.Router()}
+
+\whatwhyhow{
+\texttt{express.Router()} creates a mini, mountable Express app scoped to one resource.
+}{
+Without it, every route lives in one giant \texttt{app.js}, unmanageable as the API grows.
+}{
+Define routes in \texttt{routes/*.routes.js}, export the router, mount it in \texttt{app.js} with \texttt{app.use("/api/tasks", taskRoutes)}.
+}
+
+\subsection{routes/auth.routes.js}
+
+\begin{lstlisting}[language=JavaScript]
+const express = require("express");
+const { register, login, logout, getMe } = require("../controllers/auth.controller");
+const { protect } = require("../middleware/auth.middleware");
+const router = express.Router();
+
+router.post("/register", register);
+router.post("/login", login);
+router.post("/logout", logout);
+router.get("/me", protect, getMe);
+module.exports = router;
+\end{lstlisting}
+
+\subsection{routes/task.routes.js}
+
+\begin{lstlisting}[language=JavaScript]
+const express = require("express");
+const { createTask, getTasks, getTaskById, updateTask, deleteTask } = require("../controllers/task.controller");
+const { protect } = require("../middleware/auth.middleware");
+const router = express.Router();
+
+router.use(protect); // every task route requires authentication
+router.post("/", createTask);
+router.get("/", getTasks);
+router.get("/:id", getTaskById);
+router.put("/:id", updateTask);
+router.delete("/:id", deleteTask);
+module.exports = router;
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+\texttt{user.routes.js} and \texttt{profile.routes.js} follow the same router + protect pattern shown above, just scoped to their own controllers.
+\end{notebox}
+
+\section{Route Params vs Query Params vs Body}
+
+\begin{itemize}
+  \item \textbf{Route params} --- identify a specific resource: \texttt{/tasks/:id} $\rightarrow$ \texttt{req.params.id}.
+  \item \textbf{Query params} --- filtering/pagination/sorting: \texttt{/tasks?page=1\&limit=10} $\rightarrow$ \texttt{req.query}.
+  \item \textbf{Request body} --- JSON payload for create/update, populated by \texttt{express.json()}.
+\end{itemize}
+
+\begin{lstlisting}[language=JavaScript]
+// GET /api/tasks?page=2&limit=10&status=todo -> req.query
+const { page = 1, limit = 10, status } = req.query;
+// GET /api/tasks/:id -> req.params
+const { id } = req.params;
+\end{lstlisting}
+
+\section{Task Routes Reference}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l l X}
+\toprule
+\textbf{Method} & \textbf{Path} & \textbf{Purpose} \\
+\midrule
+POST   & /api/tasks      & Create task \\
+GET    & /api/tasks      & List tasks (paginated/filtered) \\
+GET    & /api/tasks/:id  & Fetch one task \\
+PUT    & /api/tasks/:id  & Update task \\
+DELETE & /api/tasks/:id  & Remove task \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{tipbox}[TIP]
+Keep route files thin: wire paths to controllers and middleware only, no business logic.
+\end{tipbox}

@@ -1,0 +1,125 @@
+\chapter{MVC + Service Layer Architecture}
+
+\section{Professional Backend Folder Structure}
+
+\begin{diagrambox}[backend/src Folder Tree]
+\begin{verbatim}
+backend/src/
+|-- config/db.js   controllers/   middleware/   models/
+|-- routes/   services/   validators/   utils/
+|-- app.js  (Express + middleware + routes)
+`-- server.js  (HTTP listener + DB connection)
+\end{verbatim}
+\end{diagrambox}
+
+\section{The Request Flow}
+
+\begin{diagrambox}[Layered Request Flow]
+\begin{verbatim}
+Client -> Route (path match) -> Middleware (auth/validate)
+       -> Controller (parse req, call service, shape res)
+       -> Service (business rules) -> Model (Mongoose) -> MongoDB
+\end{verbatim}
+\end{diagrambox}
+
+\section{Anti-Pattern: Everything in the Route Handler}
+
+\begin{warnbox}[ANTI-PATTERN]
+Mixing auth, validation, and DB access directly in a route handler does not scale past a handful of endpoints.
+\end{warnbox}
+
+\begin{lstlisting}[language=JavaScript]
+// routes/task.routes.js  -- DO NOT DO THIS
+router.post("/", async (req, res) => {
+  const token = req.cookies.token;
+  if (!token) return res.status(401).json({ message: "Not authenticated" });
+  let userId;
+  try { userId = jwt.verify(token, process.env.JWT_SECRET).id; }
+  catch (e) { return res.status(401).json({ message: "Invalid token" }); }
+
+  const { title, status } = req.body;
+  if (!title?.trim()) return res.status(400).json({ message: "Title is required" });
+
+  try {
+    const count = await Task.countDocuments({ user: userId });
+    if (count >= 100) return res.status(400).json({ message: "Task limit reached" });
+    const task = new Task({ title, status, user: userId });
+    await task.save();
+    return res.status(201).json(await task.populate("user", "name email"));
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+\end{lstlisting}
+
+\section{Refactored: Route -> Controller -> Service}
+
+\subsection{routes/task.routes.js}
+
+\begin{lstlisting}[language=JavaScript]
+const { createTask } = require("../controllers/task.controller");
+const { protect } = require("../middleware/auth.middleware");
+const { validateTask } = require("../validators/task.validator");
+
+router.post("/", protect, validateTask, createTask);
+\end{lstlisting}
+
+\subsection{controllers/task.controller.js}
+
+\begin{lstlisting}[language=JavaScript]
+const taskService = require("../services/task.service");
+
+// Controller: translates HTTP <-> service calls. No Mongoose here.
+const createTask = async (req, res, next) => {
+  try {
+    const task = await taskService.createTask(req.body, req.user.id);
+    res.status(201).json(task);
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { createTask };
+\end{lstlisting}
+
+\subsection{services/task.service.js}
+
+\begin{lstlisting}[language=JavaScript]
+const Task = require("../models/Task");
+const MAX_TASKS_PER_USER = 100;
+
+// Service: owns business rules and all Mongoose interaction.
+const createTask = async (taskData, userId) => {
+  const count = await Task.countDocuments({ user: userId });
+  if (count >= MAX_TASKS_PER_USER) {
+    const err = new Error("Task limit reached");
+    err.statusCode = 400;
+    throw err;
+  }
+  const task = await Task.create({ ...taskData, user: userId });
+  return task.populate("user", "name email");
+};
+
+module.exports = { createTask };
+\end{lstlisting}
+
+\section{Layer Responsibilities}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l X X}
+\toprule
+\textbf{Layer} & \textbf{Responsibility} & \textbf{Should NOT contain} \\
+\midrule
+Route       & Map path to controller, attach middleware & Business logic, DB calls \\
+Middleware  & Auth, validation, logging & Resource-specific rules \\
+Controller  & Read req, call service, shape res & Direct queries, business rules \\
+Service     & Business rules, model orchestration & req/res, status codes \\
+Model       & Schema, field validation, hooks & Cross-resource rules \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{tipbox}[TIP]
+If a function could run from a CLI script with no \texttt{req}/\texttt{res} in sight, it belongs in the service layer.
+\end{tipbox}

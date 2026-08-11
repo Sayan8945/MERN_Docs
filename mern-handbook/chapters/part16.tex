@@ -1,0 +1,161 @@
+\chapter{Complete Authentication System (Overview)}
+
+This chapter builds the shape of the authentication feature — register, login,
+logout, and "get current user" — at a flow level. Password hashing details
+(bcrypt) and token mechanics (JWT) are covered in depth in the following chapters;
+here we focus on how the pieces fit together.
+
+\section{Register Flow}
+
+\begin{diagrambox}[REGISTER Flow]
+\begin{verbatim}
+React (RegisterForm)
+     |
+     |  POST /api/auth/register  { name, email, password }
+     v
+Validate input             (required fields, email format, password length)
+     |
+     v
+Hash password               (bcrypt.hash - see Chapter 17)
+     |
+     v
+Save User document          (User.create with hashed password)
+     |
+     v
+Generate auth token          (jwt.sign - see Chapter 18)
+     |
+     v
+Response 201                 (user data + token/cookie set)
+\end{verbatim}
+\end{diagrambox}
+
+\section{Login Flow}
+
+\begin{diagrambox}[LOGIN Flow]
+\begin{verbatim}
+React (LoginForm)
+     |
+     |  POST /api/auth/login  { email, password }
+     v
+Find user by email           (User.findOne({ email }).select("+password"))
+     |
+     v
+Compare password              (bcrypt.compare - see Chapter 17)
+     |
+     v
+Generate JWT                  (jwt.sign({ id: user._id }, SECRET))
+     |
+     v
+Set httpOnly cookie            (res.cookie("token", jwt, { httpOnly: true }))
+     |
+     v
+Authenticated user             (React stores user in context/state)
+\end{verbatim}
+\end{diagrambox}
+
+\section{authController.js Skeleton}
+
+\begin{lstlisting}[language=JavaScript]
+// controllers/auth.controller.js
+const authService = require("../services/auth.service");
+
+// POST /api/auth/register
+const register = async (req, res, next) => {
+  try {
+    const { name, email, password } = req.body;
+    // hash password - see Chapter 17
+    // create user - see Chapter 13 (User model)
+    // generate token - see Chapter 18
+    const { user, token } = await authService.register({ name, email, password });
+
+    res.cookie("token", token, { httpOnly: true });
+    res.status(201).json({ user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/auth/login
+const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    // find user + compare password - see Chapter 17
+    // generate JWT - see Chapter 18
+    const { user, token } = await authService.login({ email, password });
+
+    res.cookie("token", token, { httpOnly: true });
+    res.status(200).json({ user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// POST /api/auth/logout
+const logout = async (req, res, next) => {
+  try {
+    // clear the auth cookie - see Chapter 19
+    res.clearCookie("token");
+    res.status(200).json({ message: "Logged out" });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /api/auth/me
+const getMe = async (req, res, next) => {
+  try {
+    // req.user is set by the protect middleware - see Chapter 19
+    const user = await authService.getCurrentUser(req.user.id);
+    res.status(200).json({ user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { register, login, logout, getMe };
+\end{lstlisting}
+
+\section{Auth Routes}
+
+\begin{lstlisting}[language=JavaScript]
+// routes/auth.routes.js
+const express = require("express");
+const { register, login, logout, getMe } = require("../controllers/auth.controller");
+const { protect } = require("../middleware/auth.middleware");
+
+const router = express.Router();
+
+router.post("/register", register);
+router.post("/login", login);
+router.post("/logout", logout);
+router.get("/me", protect, getMe);
+
+module.exports = router;
+\end{lstlisting}
+
+\section{What Comes Next}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textbf{Topic} & \textbf{Covered in} \\
+\midrule
+Password hashing with bcrypt        & Chapter 17 \\
+JWT generation and verification      & Chapter 18 \\
+The \texttt{protect} middleware and httpOnly cookies & Chapter 19 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{notebox}[NOTE]
+Notice that \texttt{register} and \texttt{login} both end the same way: a signed token is
+issued and placed in an httpOnly cookie. This is the pattern the rest of the
+authentication chapters build on directly.
+\end{notebox}
+
+\begin{warnbox}[WARNING]
+Never return the password field (hashed or not) in any auth response. The \texttt{User}
+schema's \texttt{select: false} on \texttt{password} (Chapter 13) protects against this by
+default, but always double-check the shape of \texttt{user} objects sent to the client.
+\end{warnbox}

@@ -1,0 +1,127 @@
+\chapter{Environment Variables}
+
+Configuration that differs by machine or deployment --- DB URIs, API keys,
+secrets --- doesn't belong in source code. Environment variables keep it
+out of Git and let one codebase run against different values in dev vs.
+production.
+
+\section{Why Secrets Live Outside Source Code}
+
+A hardcoded connection string or JWT secret is visible to anyone with repo
+access and stays in Git history even after deletion. Environment variables
+are injected at runtime instead; code only ever references
+\texttt{process.env.SOMETHING}.
+
+\section{Backend: \texttt{.env}}
+
+\begin{lstlisting}
+# .env (backend root -- NEVER commit)
+PORT=5000
+MONGO_URI=mongodb+srv://user:password@cluster.mongodb.net/taskmanager
+JWT_SECRET=a-long-random-string-used-to-sign-tokens
+GOOGLE_CLIENT_ID=your-google-oauth-client-id
+GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+\end{lstlisting}
+
+Load with \texttt{dotenv} at the top of the entry file, before anything
+reads \texttt{process.env}.
+
+\begin{lstlisting}[language=JavaScript]
+// server.js
+import "dotenv/config";
+import express from "express";
+import mongoose from "mongoose";
+
+mongoose.connect(process.env.MONGO_URI);
+const app = express();
+app.listen(process.env.PORT);
+\end{lstlisting}
+
+\section{Frontend: \texttt{.env} with Vite}
+
+Vite only exposes variables prefixed \texttt{VITE\_} to the client bundle;
+anything else stays invisible to frontend code by design.
+
+\begin{lstlisting}
+# .env (frontend root)
+VITE_API_URL=http://localhost:5000/api
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// api/axios.js
+import axios from "axios";
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL, withCredentials: true });
+export default api;
+\end{lstlisting}
+
+\begin{warnbox}[WARNING]
+Frontend env variables are not secret --- bundlers inline their values into
+the built JS, readable in DevTools. Never put a real secret behind
+\texttt{VITE\_}; only public values like a base API URL.
+\end{warnbox}
+
+\section{Backend vs. Frontend: Different Rules}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{} & \textbf{Backend (Node/Express)} & \textbf{Frontend (Vite/React)} \\
+\midrule
+Loaded via & \texttt{dotenv}, \texttt{process.env.KEY} & Bundled, \texttt{import.meta.env.KEY} \\
+Naming rule & Any name & Must start with \texttt{VITE\_} \\
+Visibility & Never sent to browser & Compiled into public JS \\
+Safe to store secrets? & Yes & No -- treat as public \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Development vs. Production Configuration}
+
+\begin{itemize}
+\item \textbf{File-based:} \texttt{.env.development} / \texttt{.env.production} side by side, picked by run mode.
+\item \textbf{Platform-provided:} set variables via the host's dashboard/CLI (Render, Railway, Vercel, Heroku) instead of shipping a file.
+\end{itemize}
+
+\begin{lstlisting}
+# .env.development
+VITE_API_URL=http://localhost:5000/api
+# .env.production
+VITE_API_URL=https://api.taskmanager.app/api
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+Platform-provided variables are generally preferred in production --- they
+keep backend secrets out of the repo entirely.
+\end{notebox}
+
+\section{Always Gitignore \texttt{.env}}
+
+\begin{lstlisting}
+# .gitignore
+.env
+.env.*
+!.env.example
+\end{lstlisting}
+
+Commit an \texttt{.env.example} with the same keys but placeholder values
+so teammates know what's needed without seeing real secrets.
+
+\begin{lstlisting}
+# .env.example
+PORT=5000
+MONGO_URI=
+JWT_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
+\end{lstlisting}
+
+\whatwhyhow
+{Configuration is read from \texttt{process.env} (backend, via \texttt{dotenv}) or \texttt{import.meta.env} (frontend, via \texttt{VITE\_}) instead of hardcoded.}
+{Hardcoded secrets persist in Git history, and frontend bundles are publicly readable, so backend and frontend variables need different trust assumptions.}
+{Keep an untracked \texttt{.env} per environment (or platform variables in production), commit only \texttt{.env.example}, and never put real secrets behind a \texttt{VITE\_} key.}

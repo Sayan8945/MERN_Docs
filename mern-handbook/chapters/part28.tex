@@ -1,0 +1,151 @@
+\chapter{Search, Filter, and Sort}
+
+\section{Target Endpoint}
+
+\begin{lstlisting}[language=JavaScript]
+GET /api/tasks?page=1&limit=10&search=mern&status=completed&sort=createdAt
+\end{lstlisting}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{l X}
+\toprule
+\textbf{Query Param} & \textbf{Purpose} \\
+\midrule
+\texttt{page} & Which page of results to return (used with \texttt{limit}, see Chapter~29). \\
+\texttt{limit} & How many documents per page. \\
+\texttt{search} & Free-text term matched against the task title (and optionally description). \\
+\texttt{status} & Exact-match filter, e.g.\ \texttt{pending} / \texttt{in-progress} / \texttt{completed}. \\
+\texttt{sort} & Field to sort by; a leading \texttt{-} means descending (e.g.\ \texttt{-createdAt}). \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Backend: Building the Filter Dynamically}
+
+The controller builds a plain filter object incrementally, only adding keys
+for parameters the client actually sent. This keeps the query flexible
+without needing a different code path per combination of filters.
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/controllers/task.controller.js
+const Task = require("../models/Task");
+
+const getTasks = async (req, res, next) => {
+  try {
+    const { search, status, sort } = req.query;
+
+    // ---- Build the filter object ----
+    const filter = { owner: req.user.id };
+
+    if (status) {
+      filter.status = status; // exact match
+    }
+
+    if (search) {
+      // Approach A: regex search (works without a text index, case-insensitive)
+      filter.title = { $regex: search, $options: "i" };
+
+      // Approach B (alternative): use a MongoDB text index instead:
+      //   taskSchema.index({ title: "text", description: "text" });
+      //   filter.$text = { $search: search };
+      // $text is faster on large collections but requires the index above
+      // and does not support partial-word matching the way $regex does.
+    }
+
+    // ---- Build the sort object ----
+    // "sort=-createdAt" -> { createdAt: -1 }; "sort=title" -> { title: 1 }
+    let sortObj = { createdAt: -1 }; // default: newest first
+    if (sort) {
+      const direction = sort.startsWith("-") ? -1 : 1;
+      const field = sort.replace(/^-/, "");
+      sortObj = { [field]: direction };
+    }
+
+    const tasks = await Task.find(filter).sort(sortObj);
+
+    res.status(200).json({ data: tasks });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getTasks };
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+This chapter combines search/filter/sort in isolation. Chapter~29 folds
+\texttt{.skip()} and \texttt{.limit()} into the same query so all four
+concerns --- search, filter, sort, and pagination --- work together in one
+request.
+\end{notebox}
+
+\section{Frontend: Query State and Service Function}
+
+\begin{lstlisting}[language=JavaScript]
+// frontend/src/services/taskService.js
+import api from "./api";
+
+export const fetchTasks = async ({ search, status, sort }) => {
+  const params = new URLSearchParams();
+  if (search) params.append("search", search);
+  if (status) params.append("status", status);
+  if (sort) params.append("sort", sort);
+
+  const { data } = await api.get(`/tasks?${params.toString()}`);
+  return data.data;
+};
+\end{lstlisting}
+
+\begin{lstlisting}[language=JavaScript]
+// frontend/src/components/TaskFilters.jsx
+import { useState, useEffect } from "react";
+import { fetchTasks } from "../services/taskService";
+
+function TaskFilters({ onResults }) {
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [sort, setSort] = useState("-createdAt");
+
+  useEffect(() => {
+    const timeoutId = setTimeout(async () => {
+      const tasks = await fetchTasks({ search, status, sort });
+      onResults(tasks);
+    }, 400); // debounce so we don't fire a request on every keystroke
+
+    return () => clearTimeout(timeoutId);
+  }, [search, status, sort, onResults]);
+
+  return (
+    <div>
+      <input
+        type="text"
+        placeholder="Search tasks..."
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+
+      <select value={status} onChange={(e) => setStatus(e.target.value)}>
+        <option value="">All statuses</option>
+        <option value="pending">Pending</option>
+        <option value="in-progress">In Progress</option>
+        <option value="completed">Completed</option>
+      </select>
+
+      <select value={sort} onChange={(e) => setSort(e.target.value)}>
+        <option value="-createdAt">Newest first</option>
+        <option value="createdAt">Oldest first</option>
+        <option value="title">Title (A-Z)</option>
+        <option value="-title">Title (Z-A)</option>
+      </select>
+    </div>
+  );
+}
+
+export default TaskFilters;
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+Debouncing the search input (waiting ~400ms after the last keystroke before
+firing the request) avoids sending a network request per character typed.
+\end{tipbox}

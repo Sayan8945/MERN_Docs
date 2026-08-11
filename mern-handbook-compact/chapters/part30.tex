@@ -1,0 +1,88 @@
+\chapter{MongoDB Indexing}
+
+\section{What an Index Actually Does}
+
+Without an index, MongoDB performs a \textbf{collection scan} --- checking
+every document against the filter. An index is an ordered structure mapping
+field values directly to documents, so MongoDB can jump straight to matches.
+
+\begin{diagrambox}[Without an Index]
+\begin{verbatim}
+Query: { status: "completed" }
+   Scan doc 1 -> no match
+   Scan doc 2 -> no match
+   Scan doc 3 -> match!
+   ... (continues for every document)
+\end{verbatim}
+\end{diagrambox}
+
+\begin{diagrambox}[With an Index]
+\begin{verbatim}
+Query: { status: "completed" }
+   Look up "completed" in the status index
+   Index points directly at matching documents
+   Return matches (no scan of unrelated docs)
+\end{verbatim}
+\end{diagrambox}
+
+\section{Unique Indexes}
+
+A unique index speeds up lookups \emph{and} rejects duplicate values.
+\texttt{unique: true} on a schema field creates it automatically.
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/models/User.js
+const userSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: true,
+    unique: true, // creates a unique index on `email`
+    lowercase: true,
+    trim: true,
+  },
+  password: { type: String, required: true },
+});
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+A unique index is what triggers the duplicate-email
+\texttt{E11000 duplicate key error}, which your error handler can turn into
+a \texttt{409 Conflict} (Chapter~25).
+\end{notebox}
+
+\section{Compound Indexes}
+
+A compound index covers multiple fields together, valuable when a query
+filters on one field and sorts on another --- the search/filter/sort pattern
+from Chapter~28.
+
+\begin{lstlisting}[language=JavaScript]
+// backend/src/models/Task.js
+const taskSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  status: { type: String, enum: ["pending", "in-progress", "completed"] },
+  owner: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+}, { timestamps: true });
+
+// Speeds up: Task.find({ status: "completed" }).sort({ createdAt: -1 })
+taskSchema.index({ status: 1, createdAt: -1 });
+
+module.exports = mongoose.model("Task", taskSchema);
+\end{lstlisting}
+
+Field order matters: this index efficiently supports filtering on
+\texttt{status} alone or \texttt{status} + sort by \texttt{createdAt}, but
+not a sort by \texttt{createdAt} without the \texttt{status} filter.
+
+\section{When to Add an Index}
+
+\begin{notebox}[NOTE]
+Index fields used frequently to \textbf{filter} (\texttt{status},
+\texttt{owner}), \textbf{sort} (\texttt{createdAt}), or \textbf{look up
+uniquely} (\texttt{email}).
+\end{notebox}
+
+\begin{warnbox}[WARNING]
+Indexes aren't free --- each one slows down writes and uses extra disk and
+memory, so only index fields that are actually queried or sorted on often.
+\end{warnbox}

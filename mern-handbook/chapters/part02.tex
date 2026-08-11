@@ -1,0 +1,97 @@
+\chapter{Creating a MERN Project}
+
+A MERN project is really two independent Node.js projects living side by
+side: a Vite-powered React frontend and an Express backend. They talk to
+each other only over HTTP, so they can be created, run, and deployed
+independently.
+
+\begin{diagrambox}[Project Layout]
+\begin{verbatim}
+my-app/
+|-- frontend/   (Vite + React, runs on :5173)
+|-- backend/    (Express + MongoDB, runs on :5000)
+\end{verbatim}
+\end{diagrambox}
+
+\section{Scaffolding the Frontend}
+
+\begin{lstlisting}[language=bash]
+mkdir my-app && cd my-app
+
+npm create vite@latest frontend -- --template react
+cd frontend
+npm install
+npm run dev
+\end{lstlisting}
+
+This gives you a working React app with hot module reload. We will restructure
+\texttt{src/} into a proper folder layout in Chapter 3, and add the Axios API
+layer in Chapter 7.
+
+\section{Scaffolding the Backend}
+
+\begin{lstlisting}[language=bash]
+cd my-app
+mkdir backend && cd backend
+npm init -y
+\end{lstlisting}
+
+Install the packages every MERN backend in this book relies on:
+
+\begin{lstlisting}[language=bash]
+npm install express mongoose dotenv cors cookie-parser bcryptjs jsonwebtoken
+npm install -D nodemon
+\end{lstlisting}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Package} & \textbf{Purpose} \\
+\midrule
+\texttt{express} & The HTTP server framework -- routing, middleware, request/response handling. \\
+\texttt{mongoose} & ODM (Object Document Mapper) that maps JS schemas/models to MongoDB collections. \\
+\texttt{dotenv} & Loads environment variables (\texttt{PORT}, \texttt{MONGO\_URI}, \texttt{JWT\_SECRET}) from a \texttt{.env} file. \\
+\texttt{cors} & Enables Cross-Origin Resource Sharing so the frontend origin can call the API. \\
+\texttt{cookie-parser} & Parses the \texttt{Cookie} header so the server can read the JWT stored in an HTTP-only cookie. \\
+\texttt{bcryptjs} & Hashes and compares passwords -- never store plain-text passwords. \\
+\texttt{jsonwebtoken} & Issues and verifies JWTs used for stateless authentication. \\
+\texttt{nodemon} (dev) & Restarts the server automatically on file changes during development. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+A minimal entry point to confirm everything is wired correctly:
+
+\begin{lstlisting}[language=JavaScript]
+// backend/server.js
+const express = require("express");
+const cors = require("cors");
+const cookieParser = require("cookie-parser");
+require("dotenv").config();
+
+const app = express();
+
+app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+app.use(express.json());
+app.use(cookieParser());
+
+app.get("/api/health", (req, res) => {
+  res.json({ success: true, message: "API is running" });
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+\end{lstlisting}
+
+\begin{notebox}[NOTE]
+\texttt{MONGO\_URI}, \texttt{JWT\_SECRET}, \texttt{PORT}, and \texttt{CLIENT\_URL} belong in a
+\texttt{.env} file that is git-ignored. Database connection setup with Mongoose
+is covered in Chapter 9.
+\end{notebox}
+
+\begin{tipbox}[TIP]
+Add \texttt{"dev": "nodemon server.js"} and \texttt{"start": "node server.js"} to
+\texttt{backend/package.json} scripts now -- you will use \texttt{npm run dev} constantly
+for the rest of this book.
+\end{tipbox}

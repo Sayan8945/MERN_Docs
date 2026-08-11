@@ -1,0 +1,124 @@
+\chapter{Auth Middleware for Protected APIs}
+
+Chapters 18 and 19 covered issuing and storing a JWT. This chapter puts it
+to work: a reusable Express middleware that stands in front of any route
+that should only be reachable by a logged-in user, verifies the token, and
+loads the actual user document so controllers can trust \texttt{req.user}.
+
+\begin{diagrambox}[Protected Request Flow]
+\begin{verbatim}
+ Request (with "token" cookie)
+        |
+        v
+ Auth Middleware (protect)
+        |
+        v
+ JWT Verification (jwt.verify against JWT_SECRET)
+        |
+        v
+ User Lookup (User.findById(decoded.id))
+        |
+        v
+ req.user = user document (password excluded)
+        |
+        v
+ next() -> Controller (trusts req.user, no re-checking)
+\end{verbatim}
+\end{diagrambox}
+
+\section{The \texttt{protect} Middleware}
+
+\begin{lstlisting}[language=JavaScript]
+// middleware/authMiddleware.js
+import jwt from "jsonwebtoken";
+import User from "../models/User.js";
+
+export const protect = async (req, res, next) => {
+  const token = req.cookies.token;
+
+  if (!token) {
+    return res.status(401).json({ success: false, message: "Not authenticated" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    const user = await User.findById(decoded.id).select("-password");
+    if (!user) {
+      return res.status(401).json({ success: false, message: "User no longer exists" });
+    }
+
+    req.user = user;
+    next();
+  } catch (err) {
+    return res.status(401).json({ success: false, message: "Invalid or expired token" });
+  }
+};
+\end{lstlisting}
+
+\subsection{Walking Through Each Failure Case}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Scenario} & \textbf{Result} \\
+\midrule
+No cookie sent at all & \texttt{req.cookies.token} is \texttt{undefined} -- immediate 401, never touches \texttt{jwt.verify}. \\
+Token tampered with or signed by a different secret & \texttt{jwt.verify} throws a \texttt{JsonWebTokenError} -- caught, 401. \\
+Token past its \texttt{exp} claim & \texttt{jwt.verify} throws a \texttt{TokenExpiredError} -- caught, 401. \\
+Token valid, but user was deleted after it was issued & \texttt{jwt.verify} succeeds, \texttt{User.findById} returns \texttt{null} -- explicit 401. \\
+Token valid, user exists & \texttt{req.user} is set, \texttt{next()} passes control to the controller. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\begin{notebox}[NOTE]
+\texttt{.select("-password")} excludes the hashed password from the document
+attached to \texttt{req.user}. Even though it's a hash and not the plain
+password, there's no reason for it to ever leave the database layer.
+\end{notebox}
+
+\section{Using the Middleware}
+
+Apply \texttt{protect} to any route that requires a logged-in user, simply
+by inserting it before the controller in the route definition:
+
+\begin{lstlisting}[language=JavaScript]
+// routes/taskRoutes.js
+import express from "express";
+import { protect } from "../middleware/authMiddleware.js";
+import { getTasks, createTask } from "../controllers/taskController.js";
+
+const router = express.Router();
+
+router.get("/tasks", protect, getTasks);
+router.post("/tasks", protect, createTask);
+
+export default router;
+\end{lstlisting}
+
+Inside \texttt{getTasks}, the controller can now safely reference
+\texttt{req.user} without re-verifying anything:
+
+\begin{lstlisting}[language=JavaScript]
+export const getTasks = async (req, res, next) => {
+  try {
+    const tasks = await Task.find({ user: req.user._id });
+    res.status(200).json({ success: true, data: tasks });
+  } catch (err) {
+    next(err);
+  }
+};
+\end{lstlisting}
+
+\begin{tipbox}[TIP]
+Express runs middleware in the order listed. Because \texttt{protect}
+appears before \texttt{getTasks} in the route definition, it always executes
+first -- if it doesn't call \texttt{next()}, the controller never runs. This
+is what makes the route "protected."
+\end{tipbox}
+
+\whatwhyhow
+{An Express middleware that reads the JWT cookie, verifies it, loads the corresponding user, and attaches it to \texttt{req.user} before letting the request continue.}
+{Controllers need a trustworthy, verified identity without each one re-implementing token verification and database lookups themselves.}
+{Insert \texttt{protect} as a route parameter before the controller function: \texttt{router.get("/tasks", protect, getTasks)}; any missing, invalid, or expired token short-circuits with a 401 before the controller ever runs.}
